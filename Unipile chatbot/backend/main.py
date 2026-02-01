@@ -177,7 +177,9 @@ Construct a **fully valid JSON body** with the following constraints:
 - Present the JSON to the client in a code block
 - Explain what the search will do
 - Ask for explicit approval: "Please type 'approve' or 'yes' to execute this search."
+- **REMEMBER THIS EXACT JSON** - you will need to pass it to `search_linkedin` when they approve
 - **WAIT for user approval before proceeding to Step 4**
+- **DO NOT call any tools while waiting** - just wait for their response
 
 ---
 
