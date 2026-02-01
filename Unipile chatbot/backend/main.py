@@ -281,7 +281,7 @@ TOOLS = [
                     }
                 },
                 "required": ["api", "category", "keywords"],
-                "additionalProperties": true
+                "additionalProperties": True
             }
         }
     },
