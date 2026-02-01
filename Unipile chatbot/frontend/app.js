@@ -149,10 +149,14 @@ async function sendMessage() {
         msgDiv.appendChild(contentDiv);
         chatHistory.appendChild(msgDiv);
 
+        // Force initial render
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+
         // Reading the stream
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let assistantText = "";
+        let lastUpdateTime = 0;
 
         while (true) {
             const { done, value } = await reader.read();
@@ -161,14 +165,29 @@ async function sendMessage() {
             const chunk = decoder.decode(value, { stream: true });
             assistantText += chunk;
 
-            // Update content with markdown-rendered text
-            contentDiv.innerHTML = marked.parse(assistantText);
+            // Throttle updates to every 50ms for smoother rendering
+            const now = Date.now();
+            if (now - lastUpdateTime > 50 || done) {
+                lastUpdateTime = now;
 
-            chatHistory.scrollTop = chatHistory.scrollHeight;
+                // Update content with markdown-rendered text
+                contentDiv.innerHTML = marked.parse(assistantText);
+
+                // Force reflow and scroll
+                void contentDiv.offsetHeight; // Force reflow
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
         }
+
+        // Final update to ensure everything is rendered
+        contentDiv.innerHTML = marked.parse(assistantText);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
 
         // Save to history
         messages.push({ role: 'assistant', content: assistantText });
+
+        // Update sessions list
+        await loadSessions();
 
     } catch (error) {
         console.error('Error:', error);
