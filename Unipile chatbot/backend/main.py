@@ -5,7 +5,8 @@ import os
 import json
 import uuid
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import AsyncOpenAI
+import asyncio
 
 # Import core tools and logic
 # Assuming tools.py is in the same directory
@@ -26,8 +27,8 @@ if not API_KEY:
 else:
     print(f"DEBUG: GEMINI_API_KEY loaded (len={len(API_KEY)})")
 
-# Use Gemini via OpenAI Compatibility
-client = OpenAI(
+# Use Gemini via OpenAI Compatibility (Async)
+client = AsyncOpenAI(
     api_key=API_KEY,
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
 )
@@ -348,17 +349,28 @@ async def chat(request: ChatRequest):
         # Load or init session
         if session_id not in SESSIONS:
             SESSIONS[session_id] = [{"role": "system", "content": SYSTEM_PROMPT}]
-            
-        # Update session with new user messages
-        SESSIONS[session_id] = [{"role": "system", "content": SYSTEM_PROMPT}] + [m.dict(exclude_none=True) for m in request.messages]
         
-        full_history = SESSIONS[session_id]
+        # Merge Strategy: Append only new messages from the client
+        # Currently, the client sends the whole (visible) list. 
+        # We need to preserve backend-only messages (tool results, tool_calls).
+        current_history = SESSIONS[session_id]
+        incoming_messages = [m.dict(exclude_none=True) for m in request.messages]
+        
+        # Find the first message in incoming that is NOT in current_history (by index)
+        # For this demo, we assume the client either sends a new session or appends to an old one.
+        # We look for the last message provided by the user.
+        if incoming_messages:
+            last_incoming = incoming_messages[-1]
+            # Check if this message is already at the end of our history
+            # (Basic check: same role and same content)
+            if not any(msg.get("role") == last_incoming["role"] and msg.get("content") == last_incoming["content"] for msg in current_history[-2:]):
+                current_history.append(last_incoming)
+
+        full_history = current_history
         print(f"DEBUG: Session {session_id} - Sending {len(full_history)} messages to Gemini Turn 1...")
 
-        # 1. Call OpenAI (Initial)
-        # We don't stream the first call because we need to check for tools first.
-        # (Technically we could stream tools, but it's complex for this demo)
-        response = client.chat.completions.create(
+        # 1. Call Async OpenAI (Initial)
+        response = await client.chat.completions.create(
             model="gemini-3-flash-preview", 
             messages=full_history,
             tools=TOOLS,
@@ -372,10 +384,10 @@ async def chat(request: ChatRequest):
         if message.tool_calls:
             print(f"DEBUG: Native Tool Calls detected: {[tc.function.name for tc in message.tool_calls]}")
             
-            # Execute tools directly
             tool_outputs = []
             for tool_call in message.tool_calls:
                 if tool_call.function.name == "fetch_unipile_spec":
+                    # still sync function, but that's fine for simple requests
                     result = fetch_unipile_spec()
                     tool_outputs.append({
                         "role": "tool",
@@ -384,8 +396,6 @@ async def chat(request: ChatRequest):
                     })
                 elif tool_call.function.name == "search_linkedin":
                     args = json.loads(tool_call.function.arguments)
-                    # Use resolve_linkedin_location internally if needed, or just pass the string
-                    # But the search_linkedin wrapper expects resolve_linkedin_location internally
                     result = search_linkedin(args)
                     tool_outputs.append({
                         "role": "tool",
@@ -407,18 +417,19 @@ async def chat(request: ChatRequest):
             print(f"DEBUG: History updated with {len(tool_outputs)} tool results. Starting secondary stream.")
             
             # 3. Stream Final Response
-            # Now we stream the final answer from Gemini
             async def generate():
-                print("DEBUG: Starting stream generation...")
+                print("DEBUG: [GENERATE] Starting stream generation...")
                 full_assistant_content = ""
                 try:
-                    stream = client.chat.completions.create(
+                    stream = await client.chat.completions.create(
                         model="gemini-3-flash-preview",
                         messages=full_history,
                         stream=True
                     )
                     print("DEBUG: Stream created. Iterating...")
-                    for chunk in stream:
+                    async for chunk in stream:
+                        if not chunk.choices:
+                            continue
                         content = chunk.choices[0].delta.content
                         if content:
                             full_assistant_content += content
@@ -426,12 +437,20 @@ async def chat(request: ChatRequest):
                     
                     # Persist the final response
                     full_history.append({"role": "assistant", "content": full_assistant_content})
-                    print("DEBUG: Stream finished and history updated.")
+                    print("DEBUG: [GENERATE] Stream finished and history updated.")
                 except Exception as e:
-                    print(f"DEBUG: Stream ERROR: {e}")
+                    print(f"DEBUG: [GENERATE] Stream ERROR: {e}")
                     yield f"\n[SYSTEM ERROR]: {str(e)}"
                         
-            return StreamingResponse(generate(), media_type="text/plain")
+            return StreamingResponse(
+                generate(), 
+                media_type="text/plain",
+                headers={
+                    "X-Accel-Buffering": "no",
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive"
+                }
+            )
             
         else:
             # Fallback: Check for "hallucinated" JSON tool calls if native failed
@@ -526,8 +545,9 @@ async def chat(request: ChatRequest):
                     print("DEBUG: Starting Turn 2 stream (manual)...")
                     full_assistant_content = ""
                     try:
-                        stream = client.chat.completions.create(model="gemini-3-flash-preview", messages=full_history, stream=True)
-                        for chunk in stream:
+                        stream = await client.chat.completions.create(model="gemini-3-flash-preview", messages=full_history, stream=True)
+                        async for chunk in stream:
+                            if not chunk.choices: continue
                             c = chunk.choices[0].delta.content
                             if c:
                                 full_assistant_content += c
@@ -538,7 +558,16 @@ async def chat(request: ChatRequest):
                     except Exception as e:
                         print(f"DEBUG: Turn 2 stream ERROR: {e}")
                         yield f"\n[SYSTEM ERROR]: {str(e)}"
-                return StreamingResponse(generate_manual(), media_type="text/plain")
+
+                return StreamingResponse(
+                    generate_manual(), 
+                    media_type="text/plain",
+                    headers={
+                        "X-Accel-Buffering": "no",
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive"
+                    }
+                )
 
             print("DEBUG: No tool detected. Returning raw text.")
             full_history.append({"role": "assistant", "content": content})

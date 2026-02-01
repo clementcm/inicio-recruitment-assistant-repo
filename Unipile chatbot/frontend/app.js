@@ -163,13 +163,14 @@ async function sendMessage() {
             if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
+            console.log("DEBUG: Received chunk:", chunk);
             assistantText += chunk;
 
             // Throttle updates to every 50ms for smoother rendering
             const now = Date.now();
             if (now - lastUpdateTime > 50 || done) {
                 lastUpdateTime = now;
-
+                console.log("DEBUG: Updating contentDiv, current text length:", assistantText.length);
                 // Update content with markdown-rendered text
                 contentDiv.innerHTML = marked.parse(assistantText);
 
