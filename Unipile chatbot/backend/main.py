@@ -182,10 +182,16 @@ Construct a **fully valid JSON body** with the following constraints:
 ---
 
 ## STEP 4 — EXECUTE LINKEDIN SEARCH
-After client approval:
-- Call the `search_linkedin` tool with the approved JSON payload
+**CRITICAL: When the user responds with "approve", "yes", "confirm", "ok", or similar approval:**
+1. **IMMEDIATELY call `search_linkedin`** with the exact JSON payload you showed them
+2. **DO NOT** call `fetch_unipile_spec` again
+3. **DO NOT** ask for more clarification
+4. **DO NOT** regenerate the JSON
+5. **Just execute the search** with the approved parameters
+
+After calling `search_linkedin`:
 - Receive the response as structured JSON
-- Preserve the full candidate payload for downstream analysis
+- Preserve the full candidate payload for Step 5 analysis
 
 ---
 
