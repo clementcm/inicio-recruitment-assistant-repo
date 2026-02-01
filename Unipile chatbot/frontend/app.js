@@ -1,0 +1,241 @@
+const chatHistory = document.getElementById('chat-history');
+const userInput = document.getElementById('user-input');
+const sendBtn = document.getElementById('send-btn');
+const sessionList = document.getElementById('session-list');
+const newChatBtn = document.getElementById('new-chat-btn');
+const settingsBtn = document.getElementById('settings-btn');
+const settingsModal = document.getElementById('settings-modal');
+const closeSettingsBtn = document.getElementById('close-settings');
+const validateJsonToggle = document.getElementById('validate-json-toggle');
+
+let messages = [];
+let currentSessionId = null;
+let settings = {
+    validateJson: false
+};
+
+// Load settings from localStorage
+function loadSettings() {
+    const saved = localStorage.getItem('chatSettings');
+    if (saved) {
+        settings = JSON.parse(saved);
+        validateJsonToggle.checked = settings.validateJson;
+    }
+}
+
+// Save settings to localStorage
+function saveSettings() {
+    localStorage.setItem('chatSettings', JSON.stringify(settings));
+}
+
+// Settings modal controls
+settingsBtn.onclick = () => {
+    settingsModal.classList.add('active');
+};
+
+closeSettingsBtn.onclick = () => {
+    settingsModal.classList.remove('active');
+};
+
+settingsModal.onclick = (e) => {
+    if (e.target === settingsModal) {
+        settingsModal.classList.remove('active');
+    }
+};
+
+validateJsonToggle.onchange = () => {
+    settings.validateJson = validateJsonToggle.checked;
+    saveSettings();
+};
+
+
+async function switchSession(id) {
+    try {
+        currentSessionId = id;
+        const res = await fetch(`/api/sessions/${id}`);
+        if (!res.ok) return;
+        const history = await res.json();
+
+        // Update client state
+        messages = history;
+
+        // Clear and re-render history
+        chatHistory.innerHTML = '';
+        messages.forEach(m => appendMessage(m.role, m.content));
+
+        loadSessions();
+    } catch (e) { console.error("Switch failed", e); }
+}
+
+async function loadSessions() {
+    try {
+        const res = await fetch('/api/sessions');
+        const sessions = await res.json();
+        sessionList.innerHTML = '';
+        sessions.reverse().forEach(s => {
+            const item = document.createElement('div');
+            item.className = `session-item ${s.id === currentSessionId ? 'active' : ''}`;
+            item.textContent = s.title;
+            item.title = s.title;
+            item.onclick = () => switchSession(s.id);
+            sessionList.appendChild(item);
+        });
+    } catch (e) { console.error("Failed to load sessions", e); }
+}
+
+newChatBtn.onclick = () => {
+    currentSessionId = null;
+    messages = [];
+    chatHistory.innerHTML = `
+        <div class="message system">
+            <div class="content">
+                Hello! I'm your Inicio Recruiter Assistant. I can help you find and rank top talent based on your specific requirements.
+                <br><br>
+                To get started, simply tell me about the role you're hiring for. You can include:
+                <ul>
+                    <li><strong>Job Title</strong> (e.g., Senior Java Developer)</li>
+                    <li><strong>Key Skills & Expertise</strong> (e.g., Python, AWS, Project Management)</li>
+                    <li><strong>Preferred Location</strong> (e.g., New York, Remote, Europe)</li>
+                    <li><strong>Seniority Level</strong> (e.g., Junior, Senior, Lead)</li>
+                </ul>
+                Provide as much detail as you'd like, and I'll find the best matches for you. Who are we looking for today?
+            </div>
+        </div>
+    `;
+    loadSessions();
+};
+
+function appendMessage(role, text, isTool = false) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `message ${role}`;
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'content';
+    // Use marked.js for rich rendering
+    contentDiv.innerHTML = marked.parse(text);
+
+    msgDiv.appendChild(contentDiv);
+    chatHistory.appendChild(msgDiv);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+}
+
+async function sendMessage() {
+    const text = userInput.value.trim();
+    if (!text) return;
+
+    // Add User Message
+    appendMessage('user', text);
+    userInput.value = '';
+    userInput.disabled = true;
+    sendBtn.disabled = true;
+
+    if (!currentSessionId) {
+        currentSessionId = crypto.randomUUID();
+    }
+
+    messages.push({ role: 'user', content: text });
+
+    try {
+        showThinking(); // Show indicator before request
+
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messages: messages,
+                session_id: currentSessionId,
+                validate_json: settings.validateJson
+            })
+        });
+
+        if (!response.ok) throw new Error('Network error');
+
+        removeThinking(); // Remove indicator when response starts
+
+        // Create Assistant Message container
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'message assistant';
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'content';
+        msgDiv.appendChild(contentDiv);
+        chatHistory.appendChild(msgDiv);
+
+        // Reading the stream
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let assistantText = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            assistantText += chunk;
+
+            // Update content with markdown-rendered text
+            contentDiv.innerHTML = marked.parse(assistantText);
+
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        // Save to history
+        messages.push({ role: 'assistant', content: assistantText });
+
+    } catch (error) {
+        console.error('Error:', error);
+        removeThinking(); // Ensure indicator is removed on error
+        appendMessage('system', 'Error: Connection lost.');
+    } finally {
+        userInput.disabled = false;
+        sendBtn.disabled = false;
+        userInput.focus();
+    }
+}
+
+let thinkingDiv = null;
+
+function showThinking() {
+    if (thinkingDiv) return;
+
+    thinkingDiv = document.createElement('div');
+    thinkingDiv.className = 'message assistant';
+    thinkingDiv.innerHTML = `
+        <div class="content">
+            <div class="typing-indicator">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+    `;
+    chatHistory.appendChild(thinkingDiv);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+}
+
+function removeThinking() {
+    if (thinkingDiv) {
+        thinkingDiv.remove();
+        thinkingDiv = null;
+    }
+}
+
+sendBtn.addEventListener('click', sendMessage);
+userInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendMessage();
+});
+
+const sidebar = document.querySelector('.sidebar');
+const toggleBtnSidebar = document.getElementById('sidebar-toggle-sidebar');
+const toggleBtnFloat = document.getElementById('sidebar-toggle-float');
+
+function toggleSidebar() {
+    sidebar.classList.toggle('collapsed');
+    document.body.classList.toggle('sidebar-collapsed');
+}
+
+toggleBtnSidebar.onclick = toggleSidebar;
+toggleBtnFloat.onclick = toggleSidebar;
+
+// Initial load
+loadSettings();
+loadSessions();
