@@ -6,20 +6,16 @@ const newChatBtn = document.getElementById('new-chat-btn');
 const settingsBtn = document.getElementById('settings-btn');
 const settingsModal = document.getElementById('settings-modal');
 const closeSettingsBtn = document.getElementById('close-settings');
-const validateJsonToggle = document.getElementById('validate-json-toggle');
 
 let messages = [];
 let currentSessionId = null;
 let settings = {
-    validateJson: false
-};
 
 // Load settings from localStorage
 function loadSettings() {
     const saved = localStorage.getItem('chatSettings');
     if (saved) {
         settings = JSON.parse(saved);
-        validateJsonToggle.checked = settings.validateJson;
     }
 }
 
@@ -31,22 +27,15 @@ function saveSettings() {
 // Settings modal controls
 settingsBtn.onclick = () => {
     settingsModal.classList.add('active');
-};
 
 closeSettingsBtn.onclick = () => {
     settingsModal.classList.remove('active');
-};
 
 settingsModal.onclick = (e) => {
     if (e.target === settingsModal) {
         settingsModal.classList.remove('active');
     }
-};
 
-validateJsonToggle.onchange = () => {
-    settings.validateJson = validateJsonToggle.checked;
-    saveSettings();
-};
 
 
 async function switchSession(id) {
@@ -103,7 +92,6 @@ newChatBtn.onclick = () => {
         </div>
     `;
     loadSessions();
-};
 
 function appendMessage(role, text, isTool = false) {
     const msgDiv = document.createElement('div');
@@ -144,7 +132,6 @@ async function sendMessage() {
             body: JSON.stringify({
                 messages: messages,
                 session_id: currentSessionId,
-                validate_json: settings.validateJson
             })
         });
 

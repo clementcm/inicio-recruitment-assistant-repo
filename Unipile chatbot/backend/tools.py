@@ -3,6 +3,29 @@ import requests
 import json
 from typing import Dict, Any, Optional
 
+def fetch_unipile_spec() -> Dict[str, Any]:
+    """
+    Fetches the Unipile LinkedIn Recruiter Search API specification.
+    Returns the markdown documentation from Unipile's developer docs.
+    """
+    spec_url = "https://developer.unipile.com/reference/linkedincontroller_search.md"
+    
+    try:
+        response = requests.get(spec_url, timeout=10)
+        response.raise_for_status()
+        return {
+            "success": True,
+            "spec": response.text,
+            "message": "API specification fetched successfully"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to fetch API spec: {str(e)}",
+            "message": "Using cached knowledge of Unipile API structure"
+        }
+
+
 def resolve_linkedin_location(
     location_name: str,
     account_id: Optional[str] = None,
