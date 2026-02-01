@@ -242,6 +242,18 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "fetch_unipile_spec",
+            "description": "Fetch the Unipile LinkedIn Recruiter Search API specification from the official documentation. Call this once at the start to understand the API structure, required fields, and validation rules.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_linkedin",
             "description": "Search for candidates.",
             "parameters": {
@@ -336,7 +348,14 @@ async def chat(request: ChatRequest):
             # Execute tools directly
             tool_outputs = []
             for tool_call in message.tool_calls:
-                if tool_call.function.name == "search_linkedin":
+                if tool_call.function.name == "fetch_unipile_spec":
+                    result = fetch_unipile_spec()
+                    tool_outputs.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(result)
+                    })
+                elif tool_call.function.name == "search_linkedin":
                     args = json.loads(tool_call.function.arguments)
                     # Use resolve_linkedin_location internally if needed, or just pass the string
                     # But the search_linkedin wrapper expects resolve_linkedin_location internally
