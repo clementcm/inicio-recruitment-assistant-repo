@@ -9,7 +9,7 @@ const closeSettingsBtn = document.getElementById('close-settings');
 
 let messages = [];
 let currentSessionId = null;
-let settings = {
+let settings = {};
 
 // Load settings from localStorage
 function loadSettings() {
@@ -27,16 +27,17 @@ function saveSettings() {
 // Settings modal controls
 settingsBtn.onclick = () => {
     settingsModal.classList.add('active');
+};
 
 closeSettingsBtn.onclick = () => {
     settingsModal.classList.remove('active');
+};
 
 settingsModal.onclick = (e) => {
     if (e.target === settingsModal) {
         settingsModal.classList.remove('active');
     }
-
-
+};
 
 async function switchSession(id) {
     try {
@@ -92,6 +93,7 @@ newChatBtn.onclick = () => {
         </div>
     `;
     loadSessions();
+};
 
 function appendMessage(role, text, isTool = false) {
     const msgDiv = document.createElement('div');
