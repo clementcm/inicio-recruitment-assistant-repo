@@ -160,19 +160,18 @@ Construct a **fully valid JSON body** with the following constraints:
 - Use **LinkedIn Recruiter API** (`"api": "recruiter"`)
 - Search **People only** (`"category": "people"`)
 - Use location ID from `resolve_linkedin_location` if location was provided
-- Populate only fields allowed by the spec
-- Match data types exactly
-- No nulls unless explicitly allowed
+- **Build the JSON based on the API spec you fetched** - only include fields documented in the spec
+- Match data types exactly as specified in the API documentation
+- No nulls unless explicitly allowed by the spec
 
-### JSON Structure
-```json
-{
-  "api": "recruiter",
-  "category": "people",
-  "keywords": "<your boolean search string>",
-  "location": [{"id": "<location_id>", "priority": "MUST_HAVE"}]
-}
-```
+### JSON Construction Guidelines
+- Start with the minimum required fields: `api`, `category`, `keywords`
+- Add optional fields only if they are in the spec and relevant to the search
+- Use the spec to validate field names, types, and allowed values
+- Common fields include:
+  - `keywords` (string): Your Boolean search string
+  - `location` (array of objects): Location filters with `id` and optional `priority`
+  - Other fields as documented in the API spec
 
 ### Client Checkpoint (MANDATORY)
 - Present the JSON to the client in a code block
