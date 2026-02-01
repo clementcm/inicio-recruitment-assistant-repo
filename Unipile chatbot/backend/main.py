@@ -254,14 +254,34 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_linkedin",
-            "description": "Search for candidates.",
+            "description": "Execute a LinkedIn Recruiter People Search with the provided JSON payload. The payload should be constructed based on the Unipile API specification fetched via fetch_unipile_spec. Required fields: api='recruiter', category='people', keywords (Boolean search string). Optional fields as documented in the API spec (e.g., location, skills, experience, etc.).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "keywords": {"type": "string", "description": "Boolean search keywords"},
-                    "location_name": {"type": "string", "description": "City or Region name (e.g. 'Toronto')"}
+                    "api": {
+                        "type": "string",
+                        "description": "API type - must be 'recruiter'",
+                        "enum": ["recruiter"]
+                    },
+                    "category": {
+                        "type": "string", 
+                        "description": "Search category - must be 'people'",
+                        "enum": ["people"]
+                    },
+                    "keywords": {
+                        "type": "string",
+                        "description": "Boolean search string with quoted terms and operators (AND, OR, NOT)"
+                    },
+                    "location": {
+                        "type": "array",
+                        "description": "Location filters - array of objects with 'id' and optional 'priority'",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
                 },
-                "required": ["keywords"]
+                "required": ["api", "category", "keywords"],
+                "additionalProperties": true
             }
         }
     },
