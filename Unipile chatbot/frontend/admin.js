@@ -167,4 +167,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load data
     fetchUsers();
+    loadSystemConfig();
 });
+
+// System Config Logic
+window.loadSystemConfig = async function () {
+    try {
+        const res = await authFetch('/api/admin/config');
+        if (res.ok) {
+            const configs = await res.json();
+            configs.forEach(c => {
+                const el = document.getElementById(c.key === 'UNIPILE_DSN' ? 'config-dsn' :
+                    c.key === 'UNIPILE_API_KEY' ? 'config-api-key' :
+                        c.key === 'LINKEDIN_ACCOUNT_ID' ? 'config-account-id' : null);
+                if (el) el.value = c.value;
+            });
+        }
+    } catch (e) {
+        console.error("Failed to load config", e);
+    }
+};
+
+window.saveSystemConfig = async function () {
+    const updates = [
+        { key: 'UNIPILE_DSN', value: document.getElementById('config-dsn').value },
+        { key: 'UNIPILE_API_KEY', value: document.getElementById('config-api-key').value },
+        { key: 'LINKEDIN_ACCOUNT_ID', value: document.getElementById('config-account-id').value }
+    ];
+
+    try {
+        const res = await authFetch('/api/admin/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+        });
+        if (res.ok) {
+            alert('Configuration updated successfully!');
+        } else {
+            alert('Failed to update configuration.');
+        }
+    } catch (e) {
+        console.error("Failed to save config", e);
+        alert('Error saving configuration.');
+    }
+};

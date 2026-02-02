@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import os
@@ -74,7 +76,6 @@ def startup_seed_admin():
         if not existing_admin:
             print(f"DEBUG: Seeding default admin user: {admin_email}")
             hashed_pwd = auth.get_password_hash("admin123")
-        hashed_pwd = auth.get_password_hash("admin123")
             admin_user = models.User(
                 email=admin_email, 
                 hashed_password=hashed_pwd, 
@@ -304,8 +305,9 @@ async def update_system_config_api(
 
 # Unipile Webhook Endpoint
 @app.post("/api/unipile/webhook")
-    db.commit()
-    return {"message": "User deleted"}
+async def unipile_webhook(request: Request):
+    # Placeholder for webhook handling
+    return {"status": "received"}
 
 # System Prompt (Synced with core requirements)
 # System Prompt - Structured Workflow
