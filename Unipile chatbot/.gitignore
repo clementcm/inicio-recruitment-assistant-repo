@@ -51,3 +51,4 @@ htmlcov/
 
 # Gemini artifacts directory
 .gemini/
+_archive/
