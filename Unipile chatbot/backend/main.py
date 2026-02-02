@@ -554,7 +554,7 @@ async def get_session_history(
     return formatted_messages
 
 @app.post("/api/chat")
-async def chat(request: ChatRequest, db: Session = Depends(get_db)):
+async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     try:
         session_id = request.session_id or str(uuid.uuid4())
         
