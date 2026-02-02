@@ -243,6 +243,7 @@
 
                     localStorage.setItem('inicio_token', data.access_token);
                     localStorage.setItem('inicio_is_admin', data.is_admin);
+                    localStorage.setItem('inicio_email', email);
                     window.location.href = '/';
                 }
             } catch (err) {

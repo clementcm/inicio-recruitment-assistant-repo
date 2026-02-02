@@ -67,8 +67,32 @@ document.addEventListener('DOMContentLoaded', () => {
     if (logoutBtn) {
         logoutBtn.onclick = () => {
             localStorage.removeItem('inicio_token');
+            localStorage.removeItem('inicio_email');
+            localStorage.removeItem('inicio_is_admin');
             window.location.href = '/login';
         };
+    }
+
+    // Display User Email
+    const userEmailDisplay = document.getElementById('user-email-display');
+    let userEmail = localStorage.getItem('inicio_email');
+
+    if (userEmailDisplay) {
+        if (userEmail) {
+            userEmailDisplay.textContent = userEmail;
+        } else {
+            // Fetch from API if not cached
+            authFetch('/users/me').then(res => {
+                if (res && res.ok) {
+                    res.json().then(data => {
+                        if (data.email) {
+                            localStorage.setItem('inicio_email', data.email);
+                            userEmailDisplay.textContent = data.email;
+                        }
+                    });
+                }
+            }).catch(() => { });
+        }
     }
 
     // Settings Modal Logic

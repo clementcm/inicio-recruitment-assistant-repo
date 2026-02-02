@@ -291,32 +291,15 @@
                     </svg>
                     <span>Logout</span>
                 </button>
+                <div id="user-email-display"
+                    style="margin-top: 12px; padding: 8px 12px; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); border-top: 1px solid var(--border-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                </div>
             </div>
         </nav>
 
         <!-- Main Content (Admin) -->
         <main class="main-content">
             <div class="admin-header">
-                <h1 class="admin-title">User Management</h1>
-                <button class="action-btn save" style="background:#000; color:#fff; border:none; padding:8px 16px;"
-                    onclick="openModal()">+ Add User</button>
-            </div>
-
-            <table class="user-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Email</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="user-table-body">
-                    <!-- Populated by JS -->
-                </tbody>
-            </table>
-
-            <div class="admin-header" style="margin-top: 60px;">
                 <h1 class="admin-title">System Configuration</h1>
                 <button class="action-btn save" style="background:#000; color:#fff; border:none; padding:8px 16px;"
                     onclick="saveSystemConfig()">Save Configuration</button>
@@ -336,6 +319,26 @@
                     <input type="text" id="config-account-id" placeholder="Enter Account ID">
                 </div>
             </div>
+
+            <div class="admin-header" style="margin-top: 60px;">
+                <h1 class="admin-title">User Management</h1>
+                <button class="action-btn save" style="background:#000; color:#fff; border:none; padding:8px 16px;"
+                    onclick="openModal()">+ Add User</button>
+            </div>
+
+            <table class="user-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="user-table-body">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
         </main>
     </div>
 
