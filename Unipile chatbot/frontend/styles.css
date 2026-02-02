@@ -344,7 +344,7 @@ button#send-btn {
 }
 
 button#send-btn:hover {
-    opacity: 0.8;
+    background-color: #2d2d2d;
 }
 
 button#send-btn:disabled {
@@ -583,4 +583,18 @@ button#send-btn:disabled {
 
 .toggle-switch input:checked+.toggle-slider:before {
     transform: translateX(22px);
+}
+
+/* Force consistent header sizing in chat messages to avoid font disparities */
+.message .content h1,
+.message .content h2,
+.message .content h3,
+.message .content h4 {
+    font-size: 1.15rem !important;
+    /* Uniform size for all headers */
+    font-weight: 600 !important;
+    margin-top: 16px;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+    line-height: 1.4;
 }

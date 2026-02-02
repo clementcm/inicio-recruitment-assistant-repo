@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inicio Recruiter Assistant - Login</title>
+    <!-- Importing same fonts as index.html -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        /* Using same variables as styles.css */
+        :root {
+            --sidebar-bg: #f9f9f9;
+            --chat-bg: #ffffff;
+            --text-primary: #0d0d0d;
+            --text-secondary: #676767;
+            --border-color: #e5e5e5;
+            --accent: #10a37f;
+            --font-family: 'Inter', -apple-system, system-ui, sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--sidebar-bg);
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        .login-card {
+            background-color: var(--chat-bg);
+            padding: 48px 40px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 440px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+            text-align: center;
+        }
+
+        .logo {
+            width: 130px;
+            margin-bottom: 32px;
+        }
+
+        h2 {
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 1.25rem;
+            letter-spacing: -0.01em;
+        }
+
+        p {
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .input-group {
+            text-align: left;
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            background: #fff;
+            border: 1px solid var(--border-color);
+            padding: 12px 16px;
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(16, 163, 127, 0.1);
+        }
+
+        button.primary-btn {
+            width: 100%;
+            background-color: #0d0d0d;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 8px;
+        }
+
+        button.primary-btn:hover {
+            background-color: #2d2d2d;
+        }
+
+        .toggle-auth {
+            margin-top: 32px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .toggle-auth span {
+            color: var(--accent);
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+        }
+
+        .toggle-auth span:hover {
+            text-decoration: underline;
+        }
+
+        #error-msg {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            display: none;
+            text-align: left;
+            border: 1px solid transparent;
+        }
+
+        .error {
+            background-color: #fef2f2;
+            color: #b91c1c;
+            border-color: #fecaca !important;
+        }
+
+        .success {
+            background-color: #f0fdf4;
+            color: #15803d;
+            border-color: #bbf7d0 !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="login-card">
+        <img src="/static/logo.png" alt="Inicio Logo" class="logo">
+        <h2 id="form-title">Welcome to the Recruitment Assistant</h2>
+        <p id="form-subtitle">Enter your credentials to continue to Inicio.</p>
+
+        <div class="input-group">
+            <label>Email address</label>
+            <input type="email" id="email" placeholder="Email address" autocomplete="email">
+        </div>
+
+        <div class="input-group" style="margin-bottom: 12px;">
+            <label>Password</label>
+            <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+        </div>
+
+        <button id="auth-btn" class="primary-btn">Continue</button>
+        <div id="error-msg"></div>
+
+        <div class="toggle-auth">
+            <span id="toggle-text">Don't have an account? Sign Up</span>
+        </div>
+    </div>
+
+    <script>
+        let mode = 'login';
+        const title = document.getElementById('form-title');
+        const subtitle = document.getElementById('form-subtitle');
+        const authBtn = document.getElementById('auth-btn');
+        const toggleText = document.getElementById('toggle-text');
+        const errorMsg = document.getElementById('error-msg');
+
+        toggleText.onclick = () => {
+            mode = mode === 'login' ? 'signup' : 'login';
+            title.innerText = mode === 'login' ? 'Welcome to the Recruitment Assistant' : 'Create an account';
+            subtitle.innerText = mode === 'login' ? 'Enter your credentials to continue to Inicio.' : 'Enter your details to register for Inicio.';
+            authBtn.innerText = mode === 'login' ? 'Continue' : 'Create account';
+            toggleText.innerText = mode === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Log in";
+            errorMsg.style.display = 'none';
+        };
+
+        authBtn.onclick = async () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            errorMsg.style.display = 'none';
+
+            if (!email || !password) {
+                errorMsg.innerText = "Please provide both an email and password.";
+                errorMsg.className = 'error';
+                errorMsg.style.display = 'block';
+                return;
+            }
+
+            try {
+                if (mode === 'signup') {
+                    const res = await fetch(`/api/auth/signup?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`, {
+                        method: 'POST'
+                    });
+                    if (!res.ok) {
+                        const errorDetail = await res.json();
+                        throw new Error(errorDetail.detail || "Signup failed");
+                    }
+
+                    // Success
+                    errorMsg.innerText = "Account created! You can now log in.";
+                    errorMsg.className = 'success';
+                    errorMsg.style.display = 'block';
+
+                    // Automatically switch back to login mode after 2 seconds
+                    setTimeout(() => {
+                        if (mode === 'signup') toggleText.click();
+                    }, 2000);
+
+                } else {
+                    const formData = new FormData();
+                    formData.append('username', email);
+                    formData.append('password', password);
+
+                    const res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.detail || "Invalid email or password");
+
+                    localStorage.setItem('inicio_token', data.access_token);
+                    localStorage.setItem('inicio_is_admin', data.is_admin);
+                    window.location.href = '/';
+                }
+            } catch (err) {
+                errorMsg.innerText = err.message;
+                errorMsg.className = 'error';
+                errorMsg.style.display = 'block';
+            }
+        };
+
+        // Allow Enter key to submit
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') authBtn.click();
+        });
+    </script>
+
+</body>
+
+</html>

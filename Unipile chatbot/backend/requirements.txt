@@ -6,3 +6,9 @@ pydantic
 fastapi
 uvicorn
 python-multipart
+PyJWT
+passlib[bcrypt]
+sqlalchemy
+psycopg2-binary
+bcrypt==4.0.1
+python-jose[cryptography]

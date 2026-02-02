@@ -105,7 +105,7 @@ def search_linkedin(
     # Query Parameters
     query_params = {
         "account_id": account_id,
-        "limit": min(params.get("limit", 10), 50),  # Allow up to 50, default 10
+        "limit": min(params.get("limit", 20), 50),  # Allow up to 50, default 20
     }
     
     # Clean params to remove limit from body if it was put there inadvertently

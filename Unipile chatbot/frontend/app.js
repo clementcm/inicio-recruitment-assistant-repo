@@ -1,3 +1,4 @@
+
 const chatHistory = document.getElementById('chat-history');
 const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
@@ -6,6 +7,7 @@ const newChatBtn = document.getElementById('new-chat-btn');
 const settingsBtn = document.getElementById('settings-btn');
 const settingsModal = document.getElementById('settings-modal');
 const closeSettingsBtn = document.getElementById('close-settings');
+
 
 let messages = [];
 let currentSessionId = null;
@@ -24,25 +26,13 @@ function saveSettings() {
     localStorage.setItem('chatSettings', JSON.stringify(settings));
 }
 
-// Settings modal controls
-settingsBtn.onclick = () => {
-    settingsModal.classList.add('active');
-};
 
-closeSettingsBtn.onclick = () => {
-    settingsModal.classList.remove('active');
-};
-
-settingsModal.onclick = (e) => {
-    if (e.target === settingsModal) {
-        settingsModal.classList.remove('active');
-    }
-};
+// Settings modal UI handled in shared.js
 
 async function switchSession(id) {
     try {
         currentSessionId = id;
-        const res = await fetch(`/api/sessions/${id}`);
+        const res = await authFetch(`/api/sessions/${id}`);
         if (!res.ok) return;
         const history = await res.json();
 
@@ -59,41 +49,43 @@ async function switchSession(id) {
 
 async function loadSessions() {
     try {
-        const res = await fetch('/api/sessions');
+        const res = await authFetch('/api/sessions');
         const sessions = await res.json();
-        sessionList.innerHTML = '';
-        sessions.reverse().forEach(s => {
-            const item = document.createElement('div');
-            item.className = `session-item ${s.id === currentSessionId ? 'active' : ''}`;
-            item.textContent = s.title;
-            item.title = s.title;
-            item.onclick = () => switchSession(s.id);
-            sessionList.appendChild(item);
-        });
+        if (sessionList) {
+            sessionList.innerHTML = '';
+            sessions.reverse().forEach(s => {
+                const item = document.createElement('div');
+                item.className = `session-item ${s.id === currentSessionId ? 'active' : ''}`;
+                item.textContent = s.title;
+                item.title = s.title;
+                item.onclick = () => switchSession(s.id);
+                sessionList.appendChild(item);
+            });
+        }
     } catch (e) { console.error("Failed to load sessions", e); }
 }
 
-newChatBtn.onclick = () => {
-    currentSessionId = null;
-    messages = [];
-    chatHistory.innerHTML = `
-        <div class="message system">
-            <div class="content">
-                Hello! I'm your Inicio Recruiter Assistant. I can help you find and rank top talent based on your specific requirements.
-                <br><br>
-                To get started, simply tell me about the role you're hiring for. You can include:
-                <ul>
-                    <li><strong>Job Title</strong> (e.g., Senior Java Developer)</li>
-                    <li><strong>Key Skills & Expertise</strong> (e.g., Python, AWS, Project Management)</li>
-                    <li><strong>Preferred Location</strong> (e.g., New York, Remote, Europe)</li>
-                    <li><strong>Seniority Level</strong> (e.g., Junior, Senior, Lead)</li>
-                </ul>
-                Provide as much detail as you'd like, and I'll find the best matches for you. Who are we looking for today?
+if (newChatBtn) {
+    newChatBtn.onclick = () => {
+        currentSessionId = null;
+        messages = [];
+        chatHistory.innerHTML = `
+            <div class="message system">
+                <div class="content">
+                    Hello! I'm your Inicio Recruiter Assistant. I can help you find and rank top talent based on your specific requirements.
+                    <br><br>
+                    To get started, simply tell me about the role you're hiring for. You can include:
+                    <ul>
+                        <li><strong>Job Title</strong> (e.g., Senior Java Developer)</li>
+                        <li><strong>Key Skills & Expertise</strong> (e.g., Python, AWS, Project Management)</li>
+                        <li><strong>Preferred Location</strong> (e.g., New York, Remote, Europe)</li>
+                    </ul>
+                </div>
             </div>
-        </div>
-    `;
-    loadSessions();
-};
+        `;
+        loadSessions();
+    };
+}
 
 function appendMessage(role, text, isTool = false) {
     const msgDiv = document.createElement('div');
@@ -128,12 +120,13 @@ async function sendMessage() {
     try {
         showThinking(); // Show indicator before request
 
-        const response = await fetch('/api/chat', {
+        const response = await authFetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 messages: messages,
                 session_id: currentSessionId,
+                verify_json: document.getElementById('verify-json-toggle').checked
             })
         });
 
@@ -228,22 +221,14 @@ function removeThinking() {
     }
 }
 
-sendBtn.addEventListener('click', sendMessage);
-userInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendMessage();
-});
-
-const sidebar = document.querySelector('.sidebar');
-const toggleBtnSidebar = document.getElementById('sidebar-toggle-sidebar');
-const toggleBtnFloat = document.getElementById('sidebar-toggle-float');
-
-function toggleSidebar() {
-    sidebar.classList.toggle('collapsed');
-    document.body.classList.toggle('sidebar-collapsed');
+if (sendBtn) {
+    sendBtn.addEventListener('click', sendMessage);
 }
-
-toggleBtnSidebar.onclick = toggleSidebar;
-toggleBtnFloat.onclick = toggleSidebar;
+if (userInput) {
+    userInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+}
 
 // Initial load
 loadSettings();

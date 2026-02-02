@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import os
@@ -7,6 +7,15 @@ import uuid
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 import asyncio
+
+# Database & Auth Imports
+from sqlalchemy.orm import Session
+from .database import engine, Base, get_db
+from . import models, auth
+from fastapi.security import OAuth2PasswordRequestForm
+
+# Create Tables
+Base.metadata.create_all(bind=engine)
 
 # Import core tools and logic
 # Assuming tools.py is in the same directory
@@ -54,6 +63,52 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 async def read_root():
     return FileResponse('frontend/index.html')
 
+# Add Login Page Route (to be created)
+@app.get("/login")
+async def login_page():
+    return FileResponse('frontend/login.html')
+
+@app.get("/admin")
+async def admin_page():
+    return FileResponse('frontend/admin.html')
+
+# Auth Endpoints
+@app.post("/api/auth/signup")
+async def signup(email: str, password: str, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_pwd = auth.get_password_hash(password)
+    # Default: Not Admin, Not Approved
+    new_user = models.User(email=email, hashed_password=hashed_pwd, is_admin=False, is_approved=False)
+    db.add(new_user)
+    db.commit()
+    return {"message": "User created successfully"}
+
+@app.post("/api/auth/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    if not user.is_approved:
+         raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account pending approval. Please contact administrator.",
+        )
+    
+    access_token = auth.create_access_token(data={"sub": user.email})
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "is_admin": user.is_admin
+    }
+
 
 # Data Models
 class ChatMessage(BaseModel):
@@ -65,9 +120,109 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     session_id: Optional[str] = None
+    verify_json: bool = True
 
-# In-memory session store (stateless for now, persists in RAM)
-SESSIONS = {}
+class UserBase(BaseModel):
+    email: str
+
+class UserCreate(UserBase):
+    password: str
+
+class UserUpdate(BaseModel):
+    password: Optional[str] = None
+    is_admin: Optional[bool] = None
+
+class UserResponse(UserBase):
+    id: int
+    is_active: bool
+    is_admin: bool
+    is_approved: bool
+
+    class Config:
+        from_attributes = True
+
+# Admin Dependency
+async def get_current_admin_user(current_user: models.User = Depends(auth.get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    return current_user
+
+# Admin Endpoints
+@app.get("/api/admin/users", response_model=List[UserResponse])
+async def list_users(
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db), 
+    admin: models.User = Depends(get_current_admin_user)
+):
+    users = db.query(models.User).offset(skip).limit(limit).all()
+    return users
+
+@app.post("/api/admin/users", response_model=UserResponse)
+async def create_user_admin(
+    user: UserCreate, 
+    db: Session = Depends(get_db), 
+    admin: models.User = Depends(get_current_admin_user)
+):
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_pwd = auth.get_password_hash(user.password)
+    # Admin created users are approved by default, but not admins (unless manually promoted later)
+    new_user = models.User(email=user.email, hashed_password=hashed_pwd, is_approved=True, is_admin=False)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+@app.put("/api/admin/users/{user_id}/approve")
+async def approve_user(
+    user_id: int, 
+    db: Session = Depends(get_db), 
+    admin: models.User = Depends(get_current_admin_user)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.is_approved = True
+    db.commit()
+    return {"message": f"User {user.email} approved"}
+
+@app.put("/api/admin/users/{user_id}")
+async def update_user(
+    user_id: int,
+    user_update: UserUpdate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin_user)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user_update.is_admin is not None:
+        user.is_admin = user_update.is_admin
+        
+    if user_update.password:
+        user.hashed_password = auth.get_password_hash(user_update.password)
+
+    db.commit()
+    return {"message": f"User {user.email} updated"}
+
+@app.delete("/api/admin/users/{user_id}")
+async def delete_user(
+    user_id: int, 
+    db: Session = Depends(get_db), 
+    admin: models.User = Depends(get_current_admin_user)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    db.delete(user)
+    db.commit()
+    return {"message": "User deleted"}
 
 # System Prompt (Synced with core requirements)
 # System Prompt - Structured Workflow
@@ -201,18 +356,29 @@ After calling `search_linkedin`:
 ## STEP 5 — CANDIDATE ANALYSIS & DISPLAY
 Using the returned candidate data:
 
-### Display Format
-Present results in a **Markdown Table** with:
-- **Name** (clickable link to LinkedIn profile using `linkedin_url`)
-- **Current Role**
-- **Location**
-- **Key Skills** (relevant to search)
-- **Ranking Rationale** (why they match)
+### Display Format (STRICT)
+**Structure your response using ONLY H3 (###) headers for sections.**
+
+1. **### Candidates Found**
+   - Present results in a **Markdown Table** with:
+     - **Name** (clickable link to LinkedIn profile using `linkedin_url`)
+     - **Current Role**
+     - **Location**
+     - **Key Skills**
+     - **Ranking Rationale**
 
 ### Example Table
 | Name | Current Role | Location | Key Skills | Ranking Rationale |
 |:-----|:-------------|:---------|:-----------|:------------------|
-| [John Doe](https://linkedin.com/in/johndoe) | Senior Java Developer at Google | Toronto, ON | Java, Spring Boot, AWS | **High**: 8+ years Java, Spring Boot expert, AWS certified |
+| [John Doe](https://linkedin.com/in/johndoe) | Senior Java Developer | Toronto, ON | Java, AWS | **High**: 8+ years exp |
+
+### Search Summary & Insights
+**Mandatory: Provide a concise summary of the ACTUAL candidates returned.**
+- **Candidate Count**: State exactly how many relevant candidates were found.
+- **Top Titles**: List the most common job titles found in the results (e.g., "Most are Senior Java Engineers...").
+- **Top Skills**: List the most frequent skills appearing in these specific profiles.
+- **Location Distribution**: Briefly mention where they are located.
+- **NO GENERIC FILLER**: Do NOT say "This list is biased..." or "Would you like me to filter...". Just summarize the data you have.
 
 ### Capabilities
 - Rank candidates by skill match, title relevance, experience depth, location fit
@@ -310,35 +476,54 @@ TOOLS = [
     }
 ]
 
+def serialize_history(history: List[Any]) -> List[Dict[str, Any]]:
+    """Converts OpenAI message objects to serializable dicts."""
+    serialized = []
+    for msg in history:
+        if hasattr(msg, 'dict') and callable(msg.dict):
+            serialized.append(msg.dict(exclude_none=True))
+        elif isinstance(msg, dict):
+            serialized.append(msg)
+        else:
+            # Fallback for unexpected types
+            serialized.append(str(msg))
+    return serialized
+
 @app.get("/api/sessions")
-async def get_sessions():
-    return [{"id": k, "title": v[1]["content"] if len(v) > 1 else "New Chat"} for k, v in SESSIONS.items()]
+async def get_sessions(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    db_sessions = db.query(models.ChatSession).filter(models.ChatSession.user_id == current_user.id).all()
+    results = []
+    for s in db_sessions:
+        history = json.loads(s.history)
+        title = "New Chat"
+        if len(history) > 1:
+            title = history[1].get("content", "New Chat")[:50]
+        results.append({"id": s.id, "title": title})
+    return results
 
 @app.get("/api/sessions/{session_id}")
-async def get_session_history(session_id: str):
-    if session_id not in SESSIONS:
+async def get_session_history(
+    session_id: str, 
+    current_user: models.User = Depends(auth.get_current_user), 
+    db: Session = Depends(get_db)
+):
+    db_session = db.query(models.ChatSession).filter(
+        models.ChatSession.id == session_id,
+        models.ChatSession.user_id == current_user.id
+    ).first()
+    
+    if not db_session:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    # Filter and format messages for frontend display
+    history = json.loads(db_session.history)
+    # Filter for frontend (hide system prompt and keep it simple)
     formatted_messages = []
-    for msg in SESSIONS[session_id][1:]:  # Skip system prompt
-        # Skip tool messages
-        if isinstance(msg, dict) and msg.get("role") == "tool":
-            continue
-        
-        # Handle OpenAI message objects (from tool calls)
-        if hasattr(msg, 'role') and hasattr(msg, 'content'):
-            formatted_messages.append({
-                "role": msg.role,
-                "content": msg.content or ""
-            })
-        # Handle dict messages
-        elif isinstance(msg, dict):
-            formatted_messages.append({
-                "role": msg.get("role", "assistant"),
-                "content": msg.get("content", "")
-            })
-    
+    for msg in history[1:]:
+        if msg.get("role") == "tool": continue
+        formatted_messages.append({
+            "role": msg.get("role"),
+            "content": msg.get("content") or ""
+        })
     return formatted_messages
 
 @app.post("/api/chat")
@@ -346,48 +531,100 @@ async def chat(request: ChatRequest):
     try:
         session_id = request.session_id or str(uuid.uuid4())
         
-        # Load or init session
-        if session_id not in SESSIONS:
-            SESSIONS[session_id] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        # Prepare System Prompt based on verification setting
+        current_system_prompt = SYSTEM_PROMPT
+        if not request.verify_json:
+            print("DEBUG: Verification disabled. Modifying system prompt.")
+            checkpoint_block = """### Client Checkpoint (MANDATORY)
+- Present the JSON to the client in a code block
+- Explain what the search will do
+- Ask for explicit approval: "Please type 'approve' or 'yes' to execute this search."
+- **REMEMBER THIS EXACT JSON** - you will need to pass it to `search_linkedin` when they approve
+- **WAIT for user approval before proceeding to Step 4**
+- **DO NOT call any tools while waiting** - just wait for their response"""
+
+            checkpoint_replacement = """### Client Checkpoint (SKIPPED)
+- **DO NOT ask for approval.**
+- **IMMEDIATELY** call the `search_linkedin` tool with the JSON you just built.
+- Proceed to Step 5 (Analysis) immediately after the tool call."""
+            
+            current_system_prompt = current_system_prompt.replace(checkpoint_block, checkpoint_replacement)
+            
+            step4_block = """## STEP 4 — EXECUTE LINKEDIN SEARCH
+**CRITICAL: When the user responds with "approve", "yes", "confirm", "ok", or similar approval:**
+1. **IMMEDIATELY call `search_linkedin`** with the exact JSON payload you showed them"""
+
+            step4_replacement = """## STEP 4 — EXECUTE LINKEDIN SEARCH
+**CRITICAL: EXECUTE IMMEDIATELY**
+1. **Call `search_linkedin`** with the JSON payload from Step 3"""
+            
+            if checkpoint_block in current_system_prompt:
+                print("DEBUG: Checkpoint block FOUND and replacing...")
+            else:
+                print("DEBUG: Checkpoint block NOT FOUND - Replacement failed!")
+
+            current_system_prompt = current_system_prompt.replace(checkpoint_block, checkpoint_replacement)
+            
+            if step4_block in current_system_prompt:
+                 print("DEBUG: Step 4 block FOUND and replacing...")
+            else:
+                 print("DEBUG: Step 4 block NOT FOUND - Replacement failed!")
+
+            current_system_prompt = current_system_prompt.replace(step4_block, step4_replacement)
+
+        # Load or init session from DB
+        db_session = db.query(models.ChatSession).filter(
+            models.ChatSession.id == session_id,
+            models.ChatSession.user_id == current_user.id
+        ).first()
+
+        if not db_session:
+            current_history = [{"role": "system", "content": current_system_prompt}]
+            db_session = models.ChatSession(
+                id=session_id, 
+                user_id=current_user.id, 
+                history=json.dumps(current_history)
+            )
+            db.add(db_session)
+            db.commit()
+        else:
+            current_history = json.loads(db_session.history)
+            # Update system prompt if it changed (e.g. toggle verification)
+            if current_history and current_history[0]["role"] == "system":
+                current_history[0]["content"] = current_system_prompt
         
         # Merge Strategy: Append only new messages from the client
-        # Currently, the client sends the whole (visible) list. 
-        # We need to preserve backend-only messages (tool results, tool_calls).
-        current_history = SESSIONS[session_id]
         incoming_messages = [m.dict(exclude_none=True) for m in request.messages]
         
-        # Find the first message in incoming that is NOT in current_history (by index)
-        # For this demo, we assume the client either sends a new session or appends to an old one.
-        # We look for the last message provided by the user.
         if incoming_messages:
             last_incoming = incoming_messages[-1]
-            # Check if this message is already at the end of our history
-            # (Basic check: same role and same content)
+            # Simple check to avoid duplicates in DB
             if not any(msg.get("role") == last_incoming["role"] and msg.get("content") == last_incoming["content"] for msg in current_history[-2:]):
                 current_history.append(last_incoming)
 
         full_history = current_history
-        print(f"DEBUG: Session {session_id} - Sending {len(full_history)} messages to Gemini Turn 1...")
+        print(f"DEBUG: User {current_user.email} - Session {session_id} - Sending {len(full_history)} messages to Gemini...")
 
         # 1. Call Async OpenAI (Initial)
-        response = await client.chat.completions.create(
-            model="gemini-3-flash-preview", 
-            messages=full_history,
-            tools=TOOLS,
-            tool_choice="auto"
-        )
-        print(f"DEBUG: Turn 1 Response: {response}")
-        
-        message = response.choices[0].message
-        
-        # 2. Check for tool calls
-        if message.tool_calls:
-            print(f"DEBUG: Native Tool Calls detected: {[tc.function.name for tc in message.tool_calls]}")
+        # Loop to handle chained tool calls (e.g., fetch_spec -> search_linkedin)
+        while True:
+            response = await client.chat.completions.create(
+                model="gemini-3-flash-preview", 
+                messages=full_history,
+                tools=TOOLS,
+                tool_choice="auto"
+            )
             
+            message = response.choices[0].message
+            
+            # If no tools, break and go to streaming text
+            if not message.tool_calls:
+                break
+            
+            # Execute tools directly
             tool_outputs = []
             for tool_call in message.tool_calls:
                 if tool_call.function.name == "fetch_unipile_spec":
-                    # still sync function, but that's fine for simple requests
                     result = fetch_unipile_spec()
                     tool_outputs.append({
                         "role": "tool",
@@ -411,167 +648,40 @@ async def chat(request: ChatRequest):
                         "content": json.dumps(result)
                     })
             
-            # Append Tool Outputs
+            # Append Assistant Message (Tool Request)
             full_history.append(message)
+            # Append Tool Outputs
             full_history.extend(tool_outputs)
-            print(f"DEBUG: History updated with {len(tool_outputs)} tool results. Starting secondary stream.")
             
-            # 3. Stream Final Response
-            async def generate():
-                print("DEBUG: [GENERATE] Starting stream generation...")
-                full_assistant_content = ""
-                try:
-                    stream = await client.chat.completions.create(
-                        model="gemini-3-flash-preview",
-                        messages=full_history,
-                        stream=True
-                    )
-                    print("DEBUG: Stream created. Iterating...")
-                    async for chunk in stream:
-                        if not chunk.choices:
-                            continue
-                        content = chunk.choices[0].delta.content
-                        if content:
-                            full_assistant_content += content
-                            yield content
-                    
-                    # Persist the final response
-                    full_history.append({"role": "assistant", "content": full_assistant_content})
-                    print("DEBUG: [GENERATE] Stream finished and history updated.")
-                except Exception as e:
-                    print(f"DEBUG: [GENERATE] Stream ERROR: {e}")
-                    yield f"\n[SYSTEM ERROR]: {str(e)}"
-                        
-            return StreamingResponse(
-                generate(), 
-                media_type="text/plain",
-                headers={
-                    "X-Accel-Buffering": "no",
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive"
-                }
-            )
-            
-        else:
-            # Fallback: Check for "hallucinated" JSON tool calls if native failed
-            import re
+        async def generate():
+            # If we exited the loop, 'message' contains the text response
             content = message.content or ""
-            print(f"DEBUG: No native tool calls. Content length: {len(content)}")
-            
-            tool_detected = False
-            fname = None
-            fargs = {}
-            
-            # Use a more aggressive search: find anything between { and }
-            # and try to find tool-like keywords inside
-            potential_json_blocks = re.findall(r"({[\s\S]*?})", content)
-            
-            for block_str in potential_json_blocks:
-                try:
-                    # Basic cleanup for common hallucination issues (single quotes, trailing commas)
-                    clean_str = block_str.replace("'", '"')
-                    # Remove trailing commas before closing braces/brackets
-                    clean_str = re.sub(r",\s*([}\]])", r"\1", clean_str)
-                    
-                    data = json.loads(clean_str)
-                    print(f"DEBUG: Inspected block keys: {list(data.keys())}")
-                    
-                    if "tool_name" in data:
-                        fname = data["tool_name"]
-                        fargs = data.get("parameters", data) # Use data as args if parameters missing
-                    elif "keywords" in data or "location_name" in data:
-                        fname = "resolve_linkedin_location" if "location_name" in data else "search_linkedin"
-                        fargs = data
-                        
-                    if fname in ["search_linkedin", "resolve_linkedin_location"]:
-                        print(f"DEBUG: Intercepted Tool: {fname}")
-                        break
-                except Exception as e:
-                    print(f"DEBUG: Skipping block parse error: {e}")
-                    continue
-
-            # Python-style call fallback (default_api, unipile, or direct function.search)
-            if not fname:
-                hal_m = re.search(r"(?:default_api|unipile|search_linkedin|resolve_linkedin_location)\.(search_linkedin|resolve_linkedin_location|search|resolve)\((.*?)\)", content, re.DOTALL)
-                if hal_m:
-                    raw_name = hal_m.group(1)
-                    # Normalize name
-                    if raw_name in ["search", "search_linkedin"]: fname = "search_linkedin"
-                    elif raw_name in ["resolve", "resolve_linkedin_location"]: fname = "resolve_linkedin_location"
-                    
-                    a = hal_m.group(2)
-                    fargs = {}
-                    # Clean the arguments string (keywords='...' or keywords="...")
-                    k = re.search(r'keywords\s*=\s*["\'](.*?)["\']', a)
-                    if k: fargs["keywords"] = k.group(1)
-                    l = re.search(r'location_name\s*=\s*["\'](.*?)["\']', a)
-                    if l: fargs["location_name"] = l.group(1)
-                    loc = re.search(r'location\s*=\s*["\'](.*?)["\']', a) # For simpler location='Toronto'
-                    if loc: fargs["location_name"] = loc.group(1)
-                    g = re.search(r'geo_urns\s*=\s*\[["\'](.*?)["\']\]', a)
-                    if g: fargs["location"] = [{"id": g.group(1), "priority": "MUST_HAVE"}]
-                    lim = re.search(r'limit\s*=\s*(\d+)', a)
-                    if lim: fargs["limit"] = int(lim.group(1))
-
-            # Final standalone variable fallback (e.g. keywords = '...')
-            if not fname:
-                k = re.search(r'keywords\s*=\s*["\'](.*?)["\']', content)
-                if k:
-                    fargs["keywords"] = k.group(1)
-                    fname = "search_linkedin"
-                    # Also look for location in the same vicinity
-                    l = re.search(r'location\s*=\s*["\'](.*?)["\']', content)
-                    if l: fargs["location_name"] = l.group(1)
-
-            if fname in ["search_linkedin", "resolve_linkedin_location"]:
-                print(f"DEBUG: Proceeding with manual tool execution [{fname}]")
-                tool_detected = True
-                try:
-                    # Clean fargs of metadata like 'tool_name' if we used flat data
-                    call_args = {k: v for k, v in fargs.items() if k not in ["tool_name", "parameters"]}
-                    if fname == "search_linkedin":
-                        result = search_linkedin(call_args)
-                    else:
-                        result = resolve_linkedin_location(call_args.get("location_name", ""))
-                    print(f"DEBUG: Tool result size: {len(str(result))}")
-                except Exception as e:
-                    print(f"DEBUG: Tool EXCEPTION: {e}")
-                    result = {"error": str(e)}
+            # Yield in smaller chunks to simulate streaming for better frontend UX
+            chunk_size = 50
+            for i in range(0, len(content), chunk_size):
+                 yield content[i:i+chunk_size]
+                 # Small yield to let event loop breathe
+                 await asyncio.sleep(0.005)
                 
-                full_history.append(message)
-                full_history.append({"role": "user", "content": f"SYSTEM: Manually intercepted tool {fname}. RESULT: {json.dumps(result)}"})
-                        
-                async def generate_manual():
-                    print("DEBUG: Starting Turn 2 stream (manual)...")
-                    full_assistant_content = ""
-                    try:
-                        stream = await client.chat.completions.create(model="gemini-3-flash-preview", messages=full_history, stream=True)
-                        async for chunk in stream:
-                            if not chunk.choices: continue
-                            c = chunk.choices[0].delta.content
-                            if c:
-                                full_assistant_content += c
-                                yield c
-                        
-                        full_history.append({"role": "assistant", "content": full_assistant_content})
-                        print("DEBUG: Turn 2 stream finished and history updated.")
-                    except Exception as e:
-                        print(f"DEBUG: Turn 2 stream ERROR: {e}")
-                        yield f"\n[SYSTEM ERROR]: {str(e)}"
-
-                return StreamingResponse(
-                    generate_manual(), 
-                    media_type="text/plain",
-                    headers={
-                        "X-Accel-Buffering": "no",
-                        "Cache-Control": "no-cache",
-                        "Connection": "keep-alive"
-                    }
-                )
-
-            print("DEBUG: No tool detected. Returning raw text.")
+            # Persist the final response
             full_history.append({"role": "assistant", "content": content})
-            return StreamingResponse(iter([content]), media_type="text/plain")
+            
+            # Save updated history TO DB
+            db_session.history = json.dumps(serialize_history(full_history))
+            db.add(db_session)
+            db.commit()
+            print("DEBUG: [GENERATE] History persisted to DB.")
+                    
+        return StreamingResponse(
+            generate(), 
+            media_type="text/plain",
+            headers={
+                "X-Accel-Buffering": "no",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive"
+            }
+        )
+
 
     except Exception as e:
         import traceback

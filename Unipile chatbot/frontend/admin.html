@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inicio Admin Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .admin-layout {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            background-color: white;
+            padding: 40px 24px;
+            /* Transition for sidebar collapse */
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Adjust main content when sidebar is handled by shared.js logic */
+        /* Initially sidebar is fixed, so we might need margin-left: 260px on desktop */
+        /* But index.html uses .app-layout which is flex? checking index.html... 
+           index.html says <div class="app-layout"> ... <nav class="sidebar"> ... <div class="container">
+           styles.css defines layout.
+           To be safe, I'll replicate .app-layout structure.
+        */
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .admin-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Table and Modal Styles specific to Admin */
+        .user-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--surface);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .user-table th,
+        .user-table td {
+            padding: 16px 24px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .user-table th {
+            font-weight: 500;
+            color: var(--text-secondary);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(0, 0, 0, 0.02);
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.pending {
+            background: rgba(234, 179, 8, 0.1);
+            color: #d97706;
+        }
+
+        .status-badge.approved {
+            background: rgba(34, 197, 94, 0.1);
+            color: #16a34a;
+        }
+
+        .admin-badge {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 2px 8px;
+            background: var(--accent);
+            color: white;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .action-btn {
+            padding: 6px 16px;
+            /* Slightly wider as per image */
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            /* Light gray border */
+            background: #ffffff;
+            color: #1e293b;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin-right: 8px;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .action-btn.delete {
+            border-color: #fecaca;
+            color: #ef4444;
+        }
+
+        .action-btn.delete:hover {
+            background: #fef2f2;
+            border-color: #fca5a5;
+        }
+
+        /* Keeping approve distinct but consistent style */
+        .action-btn.approve {
+            border-color: #bbf7d0;
+            color: #16a34a;
+        }
+
+        .action-btn.approve:hover {
+            background: #f0fdf4;
+            border-color: #86efac;
+        }
+
+        /* Toggle Switch for Admin Modal */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 26px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.toggle-slider {
+            background-color: var(--accent);
+        }
+
+        input:checked+.toggle-slider:before {
+            transform: translateX(22px);
+        }
+
+        /* Modal Form Styles */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .form-group input[type="email"],
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            /* Overrides global border:none */
+            border-radius: 8px;
+            background: #f9f9f9;
+            /* Matches setting-item bg */
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent);
+            background: white;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 32px;
+        }
+    </style>
+</head>
+
+<body>
+    <button id="sidebar-toggle-float" class="sidebar-btn float" title="Open Sidebar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+        </svg>
+    </button>
+
+    <div class="app-layout">
+        <!-- Sidebar (Copied from index.html) -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">
+                    <img src="/static/logo.png" alt="Inicio Logo" class="logo">
+                </div>
+                <button id="sidebar-toggle-sidebar" class="sidebar-btn" title="Close Sidebar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <line x1="9" y1="3" x2="9" y2="21" />
+                    </svg>
+                </button>
+            </div>
+            <div class="sidebar-actions">
+                <button id="new-chat-btn" class="new-chat">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                    <span>New chat</span>
+                </button>
+            </div>
+            <div class="section-label">Your chats</div>
+            <div class="session-list" id="session-list">
+                <!-- Sessions populated by custom logic if needed, or empty for admin -->
+                <div style="padding: 0 12px; font-size: 13px; color: var(--text-secondary); margin-top: 8px;">
+                    History available in Chat
+                </div>
+            </div>
+            <div class="sidebar-footer">
+                <button id="settings-btn" class="settings-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z">
+                        </path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <span>Settings</span>
+                </button>
+                <button id="logout-btn" class="settings-btn" style="margin-top: 5px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    <span>Logout</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content (Admin) -->
+        <main class="main-content">
+            <div class="admin-header">
+                <h1 class="admin-title">User Management</h1>
+                <button class="action-btn save" style="background:#000; color:#fff; border:none; padding:8px 16px;"
+                    onclick="openModal()">+ Add User</button>
+            </div>
+
+            <table class="user-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="user-table-body">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </main>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div class="modal" id="userModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle" style="font-size: 1.5rem; font-weight: 600; margin:0;">Edit User</h2>
+                <button class="close-btn" onclick="closeModal()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <input type="hidden" id="editUserId">
+            <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" id="userEmail" placeholder="user@example.com">
+            </div>
+            <div class="form-group">
+                <label>Password <small id="pwd-hint" style="color:var(--text-secondary)">(Leave blank to keep
+                        unchanged)</small></label>
+                <input type="password" id="userPassword" placeholder="••••••••">
+            </div>
+            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="margin:0">Admin Privileges</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="userIsAdmin">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="form-actions">
+                <button class="action-btn" onclick="closeModal()">Cancel</button>
+                <button class="action-btn save" style="background:#000; color:#fff; border:none;"
+                    onclick="saveUser()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal (Copied for structure, handled by shared.js) -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button id="close-settings" class="close-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-subtitle">Configure Recruiter Assistant</div>
+            <div class="settings-section">
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-label">User Verification Checkpoint</div>
+                        <div class="setting-description">Ask for approval before executing LinkedIn searches</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="verify-json-toggle" checked disabled>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <small style="display:block; margin-top:5px; color:gray;">(Settings are global in Chat)</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/shared.js"></script>
+    <script src="/static/admin.js"></script>
+</body>
+
+</html>
