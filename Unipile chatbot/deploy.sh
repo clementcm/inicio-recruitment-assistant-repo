@@ -63,6 +63,20 @@ IMAGE_NAME="gcr.io/$PROJECT_ID/$SERVICE_NAME"
 echo "Enabling necessary APIs (Cloud Build, Cloud Run)..."
 gcloud services enable cloudbuild.googleapis.com run.googleapis.com
 
+# Auto-detect API Key from .env
+if [ -f .env ]; then
+    echo "Reading GEMINI_API_KEY from .env..."
+    ENV_KEY=$(grep GEMINI_API_KEY .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    if [ -n "$ENV_KEY" ]; then
+        export GEMINI_API_KEY=$ENV_KEY
+    fi
+fi
+
+if [ -z "$GEMINI_API_KEY" ]; then
+    echo -e "${YELLOW}Warning: GEMINI_API_KEY not found.${NC}"
+    read -p "Enter your valid Gemini API Key: " GEMINI_API_KEY
+fi
+
 # 5. Build Container
 echo -e "${YELLOW}Building container image... (This may take a few minutes)${NC}"
 gcloud builds submit --tag "$IMAGE_NAME" .
@@ -75,7 +89,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --platform managed \
     --allow-unauthenticated \
     --set-env-vars="JWT_SECRET_KEY=$(openssl rand -hex 32)" \
-    --set-env-vars="GEMINI_API_KEY=${GEMINI_API_KEY:-insert_your_key_here}"
+    --set-env-vars="GEMINI_API_KEY=$GEMINI_API_KEY"
 
 echo -e "${GREEN}✅ Deployment Complete!${NC}"
 echo -e "Your service URL is displayed above."
