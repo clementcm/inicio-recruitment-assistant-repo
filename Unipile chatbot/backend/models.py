@@ -23,3 +23,9 @@ class ChatSession(Base):
     history = Column(Text) # Store JSON string of message history
 
     owner = relationship("User", back_populates="sessions")
+
+class SystemConfig(Base):
+    __tablename__ = "system_config"
+
+    key = Column(String, primary_key=True, index=True)
+    value = Column(String)

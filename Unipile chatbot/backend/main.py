@@ -74,6 +74,7 @@ def startup_seed_admin():
         if not existing_admin:
             print(f"DEBUG: Seeding default admin user: {admin_email}")
             hashed_pwd = auth.get_password_hash("admin123")
+        hashed_pwd = auth.get_password_hash("admin123")
             admin_user = models.User(
                 email=admin_email, 
                 hashed_password=hashed_pwd, 
@@ -86,8 +87,23 @@ def startup_seed_admin():
             print("DEBUG: Default admin user created.")
         else:
             print("DEBUG: Admin user already exists.")
+
+        # Seed System Config from ENV if empty
+        if db.query(models.SystemConfig).count() == 0:
+            print("DEBUG: Seeding System Config from ENV...")
+            default_config = {
+                "UNIPILE_DSN": os.getenv("UNIPILE_DSN", "https://api1.unipile.com:13200"),
+                "UNIPILE_API_KEY": os.getenv("UNIPILE_API_KEY", ""),
+                "LINKEDIN_ACCOUNT_ID": os.getenv("LINKEDIN_ACCOUNT_ID", "")
+            }
+            for key, value in default_config.items():
+                if value:
+                    db.add(models.SystemConfig(key=key, value=value))
+            db.commit()
+            print("DEBUG: System Config seeded.")
+
     except Exception as e:
-        print(f"WARNING: Failed to seed admin user: {e}")
+        print(f"WARNING: Failed to seed data: {e}")
     finally:
         db.close()
 
@@ -255,6 +271,39 @@ async def delete_user(
         raise HTTPException(status_code=404, detail="User not found")
     
     db.delete(user)
+    db.commit()
+    return {"message": f"User {user.email} deleted"}
+
+# Admin Config Endpoints
+class SystemConfigItem(BaseModel):
+    key: str
+    value: str
+
+@app.get("/api/admin/config", response_model=List[SystemConfigItem])
+async def get_system_config_api(
+    db: Session = Depends(get_db), 
+    admin: models.User = Depends(get_current_admin_user)
+):
+    configs = db.query(models.SystemConfig).all()
+    return configs
+
+@app.post("/api/admin/config")
+async def update_system_config_api(
+    config_items: List[SystemConfigItem],
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin_user)
+):
+    for item in config_items:
+        config_entry = db.query(models.SystemConfig).filter(models.SystemConfig.key == item.key).first()
+        if config_entry:
+            config_entry.value = item.value
+        else:
+            db.add(models.SystemConfig(key=item.key, value=item.value))
+    db.commit()
+    return {"message": "Configuration updated"}
+
+# Unipile Webhook Endpoint
+@app.post("/api/unipile/webhook")
     db.commit()
     return {"message": "User deleted"}
 
@@ -674,6 +723,12 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
             if not message.tool_calls:
                 break
             
+            # Fetch Config for Tools
+            db_config = {c.key: c.value for c in db.query(models.SystemConfig).all()}
+            unipile_dsn = db_config.get("UNIPILE_DSN")
+            unipile_api_key = db_config.get("UNIPILE_API_KEY")
+            linkedin_account_id = db_config.get("LINKEDIN_ACCOUNT_ID")
+
             # Execute tools directly
             tool_outputs = []
             for tool_call in message.tool_calls:
@@ -686,7 +741,13 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
                     })
                 elif tool_call.function.name == "search_linkedin":
                     args = json.loads(tool_call.function.arguments)
-                    result = search_linkedin(args)
+                    # Inject Config
+                    result = search_linkedin(
+                        args, 
+                        account_id=linkedin_account_id, 
+                        base_url=unipile_dsn, 
+                        api_key=unipile_api_key
+                    )
                     tool_outputs.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,
@@ -694,7 +755,12 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
                     })
                 elif tool_call.function.name == "resolve_linkedin_location":
                     args = json.loads(tool_call.function.arguments)
-                    result = resolve_linkedin_location(args["location_name"])
+                    result = resolve_linkedin_location(
+                        args["location_name"],
+                        account_id=linkedin_account_id, 
+                        base_url=unipile_dsn, 
+                        api_key=unipile_api_key
+                    )
                     tool_outputs.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,

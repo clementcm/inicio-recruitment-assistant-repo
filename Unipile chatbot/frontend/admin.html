@@ -312,6 +312,27 @@
                     <!-- Populated by JS -->
                 </tbody>
             </table>
+
+            <div class="admin-header" style="margin-top: 60px;">
+                <h1 class="admin-title">System Configuration</h1>
+                <button class="action-btn save" style="background:#000; color:#fff; border:none; padding:8px 16px;"
+                    onclick="saveSystemConfig()">Save Configuration</button>
+            </div>
+
+            <div class="user-table" style="padding: 24px; background:white;">
+                <div class="form-group">
+                    <label>Unipile DSN</label>
+                    <input type="text" id="config-dsn" placeholder="https://api1.unipile.com:13200">
+                </div>
+                <div class="form-group">
+                    <label>Unipile API Key</label>
+                    <input type="password" id="config-api-key" placeholder="Enter API Key">
+                </div>
+                <div class="form-group">
+                    <label>LinkedIn Account ID</label>
+                    <input type="text" id="config-account-id" placeholder="Enter Account ID">
+                </div>
+            </div>
         </main>
     </div>
 
