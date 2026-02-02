@@ -78,6 +78,18 @@ if [ -f .env ]; then
     if [ -n "$UNIPILE_KEY" ]; then
         export UNIPILE_API_KEY=$UNIPILE_KEY
     fi
+
+    # Unipile DSN
+    DSN=$(grep UNIPILE_DSN .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    if [ -n "$DSN" ]; then
+        export UNIPILE_DSN=$DSN
+    fi
+
+    # LinkedIn Account ID
+    LINKEDIN_ID=$(grep LINKEDIN_ACCOUNT_ID .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    if [ -n "$LINKEDIN_ID" ]; then
+        export LINKEDIN_ACCOUNT_ID=$LINKEDIN_ID
+    fi
 fi
 
 if [ -z "$GEMINI_API_KEY" ]; then
@@ -103,7 +115,9 @@ gcloud run deploy "$SERVICE_NAME" \
     --allow-unauthenticated \
     --set-env-vars="JWT_SECRET_KEY=$(openssl rand -hex 32)" \
     --set-env-vars="GEMINI_API_KEY=$GEMINI_API_KEY" \
-    --set-env-vars="UNIPILE_API_KEY=$UNIPILE_API_KEY"
+    --set-env-vars="UNIPILE_API_KEY=$UNIPILE_API_KEY" \
+    --set-env-vars="UNIPILE_DSN=${UNIPILE_DSN:-https://api1.unipile.com:13200}" \
+    --set-env-vars="LINKEDIN_ACCOUNT_ID=${LINKEDIN_ACCOUNT_ID}"
 
 echo -e "${GREEN}✅ Deployment Complete!${NC}"
 echo -e "Your service URL is displayed above."
