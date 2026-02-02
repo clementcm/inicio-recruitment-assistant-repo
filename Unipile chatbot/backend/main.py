@@ -78,7 +78,8 @@ def startup_seed_admin():
                 email=admin_email, 
                 hashed_password=hashed_pwd, 
                 is_admin=True, 
-                is_approved=True
+                is_approved=True,
+                verify_json=False
             )
             db.add(admin_user)
             db.commit()
