@@ -11,6 +11,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
     is_approved = Column(Boolean, default=False)
+    verify_json = Column(Boolean, default=False)
 
     sessions = relationship("ChatSession", back_populates="owner")
 

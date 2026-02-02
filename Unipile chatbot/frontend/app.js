@@ -230,6 +230,40 @@ if (userInput) {
     });
 }
 
+// Load User Profile (Verification Setting)
+async function loadUserProfile() {
+    try {
+        const res = await authFetch('/api/users/me');
+        if (res.ok) {
+            const user = await res.json();
+            const toggle = document.getElementById('verify-json-toggle');
+            if (toggle) {
+                toggle.checked = user.verify_json;
+                // Bind change event
+                toggle.onchange = async () => {
+                    try {
+                        const updateRes = await authFetch('/api/users/me', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ verify_json: toggle.checked })
+                        });
+                        if (updateRes.ok) {
+                            console.log("Settings saved");
+                        } else {
+                            console.error("Failed to save settings");
+                            toggle.checked = !toggle.checked; // Revert
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        toggle.checked = !toggle.checked;
+                    }
+                };
+            }
+        }
+    } catch (e) { console.error("Failed to load profile", e); }
+}
+
 // Initial load
 loadSettings();
 loadSessions();
+loadUserProfile();

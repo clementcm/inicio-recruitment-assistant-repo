@@ -158,12 +158,18 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     password: Optional[str] = None
     is_admin: Optional[bool] = None
+    verify_json: Optional[bool] = None
+
+class UserProfileUpdate(BaseModel):
+    password: Optional[str] = None
+    verify_json: Optional[bool] = None
 
 class UserResponse(UserBase):
     id: int
     is_active: bool
     is_admin: bool
     is_approved: bool
+    verify_json: bool
 
     class Config:
         from_attributes = True
@@ -516,6 +522,25 @@ def serialize_history(history: List[Any]) -> List[Dict[str, Any]]:
             serialized.append(str(msg))
     return serialized
 
+@app.get("/api/users/me", response_model=UserResponse)
+async def read_users_me(current_user: models.User = Depends(auth.get_current_user)):
+    return current_user
+
+@app.put("/api/users/me", response_model=UserResponse)
+async def update_users_me(
+    user_update: UserProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if user_update.password:
+        current_user.hashed_password = auth.get_password_hash(user_update.password)
+    if user_update.verify_json is not None:
+        current_user.verify_json = user_update.verify_json
+    
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
 @app.get("/api/sessions")
 async def get_sessions(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     db_sessions = db.query(models.ChatSession).filter(models.ChatSession.user_id == current_user.id).all()
@@ -560,7 +585,7 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
         
         # Prepare System Prompt based on verification setting
         current_system_prompt = SYSTEM_PROMPT
-        if not request.verify_json:
+        if not current_user.verify_json:
             print("DEBUG: Verification disabled. Modifying system prompt.")
             checkpoint_block = """### Client Checkpoint (MANDATORY)
 - Present the JSON to the client in a code block
