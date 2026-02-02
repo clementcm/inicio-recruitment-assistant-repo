@@ -8,14 +8,29 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}🚀 Starting deployment setup for Inicio Recruiter Assistant...${NC}"
 
-# 1. Check for gcloud CLI
+# 1. Custom Path & Gcloud Check
+if [ -d "/Users/clement/GCP/google-cloud-sdk/bin" ]; then
+    export PATH="/Users/clement/GCP/google-cloud-sdk/bin:$PATH"
+fi
+
 if ! command -v gcloud &> /dev/null; then
     echo "Error: gcloud is not installed or not in your PATH."
     echo "Please install the Google Cloud SDK: https://cloud.google.com/sdk/docs/install"
     exit 1
 fi
 
-# 2. Get/Set Project ID
+# 2. Check Authentication
+echo "Checking authentication status..."
+ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format="value(account)" 2>/dev/null)
+if [ -z "$ACCOUNT" ]; then
+    echo -e "${YELLOW}⚠️  You are not logged in to Google Cloud.${NC}"
+    echo "Launching login..."
+    gcloud auth login
+else
+    echo -e "Authenticated as: ${GREEN}$ACCOUNT${NC}"
+fi
+
+# 3. Get/Set Project ID
 PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
 if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" == "(unset)" ]; then
     echo -e "${YELLOW}No active GCP Project selected.${NC}"
