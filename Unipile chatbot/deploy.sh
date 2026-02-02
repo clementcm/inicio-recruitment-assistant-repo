@@ -32,18 +32,26 @@ fi
 
 # 3. Get/Set Project ID
 PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
+
+if [ -n "$PROJECT_ID" ] && [ "$PROJECT_ID" != "(unset)" ]; then
+    echo -e "Current configured project: ${GREEN}$PROJECT_ID${NC}"
+    read -p "Is this correct? (Y/n): " CONFIRM
+    if [[ "$CONFIRM" =~ ^[Nn] ]]; then
+        PROJECT_ID="" # Clear to force re-entry
+    fi
+fi
+
 if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" == "(unset)" ]; then
-    echo -e "${YELLOW}No active GCP Project selected.${NC}"
-    read -p "Enter your Google Cloud Project ID: " PROJECT_ID
+    echo -e "${YELLOW}Fetching available projects...${NC}"
+    gcloud projects list
+    echo ""
+    read -p "Enter Google Cloud Project ID from list above: " PROJECT_ID
     if [ -z "$PROJECT_ID" ]; then
         echo "Error: Project ID required."
         exit 1
     fi
     echo "Setting project to $PROJECT_ID..."
     gcloud config set project "$PROJECT_ID"
-else
-    echo -e "Using current project: ${GREEN}$PROJECT_ID${NC}"
-    read -p "Press ENTER to confirm or Ctrl+C to cancel..."
 fi
 
 # 3. Deployment Configuration
