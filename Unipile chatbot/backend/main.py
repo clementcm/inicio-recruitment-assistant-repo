@@ -449,6 +449,8 @@ Using the returned candidate data:
      - **Name** (clickable link to LinkedIn profile using `linkedin_url`)
      - **Current Role**
      - **Location**
+     - **Open to Work**
+     - **Education**
      - **Key Skills**
      - **Ranking Rationale**
 
