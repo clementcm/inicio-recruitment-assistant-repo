@@ -176,11 +176,17 @@ window.loadSystemConfig = async function () {
         const res = await authFetch('/api/admin/config');
         if (res.ok) {
             const configs = await res.json();
+            console.log("Loaded Configs:", configs);
             configs.forEach(c => {
                 const el = document.getElementById(c.key === 'UNIPILE_DSN' ? 'config-dsn' :
                     c.key === 'UNIPILE_API_KEY' ? 'config-api-key' :
                         c.key === 'LINKEDIN_ACCOUNT_ID' ? 'config-account-id' : null);
-                if (el) el.value = c.value;
+                if (el) {
+                    el.value = c.value;
+                    console.log(`Set ${c.key} to ${c.value}`);
+                } else {
+                    console.warn(`Element for ${c.key} not found`);
+                }
             });
         }
     } catch (e) {
