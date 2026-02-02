@@ -63,18 +63,31 @@ IMAGE_NAME="gcr.io/$PROJECT_ID/$SERVICE_NAME"
 echo "Enabling necessary APIs (Cloud Build, Cloud Run)..."
 gcloud services enable cloudbuild.googleapis.com run.googleapis.com
 
-# Auto-detect API Key from .env
+# Auto-detect API Keys from .env
 if [ -f .env ]; then
-    echo "Reading GEMINI_API_KEY from .env..."
+    echo "Reading API Keys from .env..."
+    
+    # Gemini Key
     ENV_KEY=$(grep GEMINI_API_KEY .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
     if [ -n "$ENV_KEY" ]; then
         export GEMINI_API_KEY=$ENV_KEY
+    fi
+
+    # Unipile Key
+    UNIPILE_KEY=$(grep UNIPILE_API_KEY .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    if [ -n "$UNIPILE_KEY" ]; then
+        export UNIPILE_API_KEY=$UNIPILE_KEY
     fi
 fi
 
 if [ -z "$GEMINI_API_KEY" ]; then
     echo -e "${YELLOW}Warning: GEMINI_API_KEY not found.${NC}"
     read -p "Enter your valid Gemini API Key: " GEMINI_API_KEY
+fi
+
+if [ -z "$UNIPILE_API_KEY" ]; then
+    echo -e "${YELLOW}Warning: UNIPILE_API_KEY not found.${NC}"
+    read -p "Enter your valid Unipile API Key: " UNIPILE_API_KEY
 fi
 
 # 5. Build Container
@@ -89,7 +102,8 @@ gcloud run deploy "$SERVICE_NAME" \
     --platform managed \
     --allow-unauthenticated \
     --set-env-vars="JWT_SECRET_KEY=$(openssl rand -hex 32)" \
-    --set-env-vars="GEMINI_API_KEY=$GEMINI_API_KEY"
+    --set-env-vars="GEMINI_API_KEY=$GEMINI_API_KEY" \
+    --set-env-vars="UNIPILE_API_KEY=$UNIPILE_API_KEY"
 
 echo -e "${GREEN}✅ Deployment Complete!${NC}"
 echo -e "Your service URL is displayed above."
