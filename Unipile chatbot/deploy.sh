@@ -1,26 +1,61 @@
 #!/bin/bash
+set -e
 
-# Configuration - Update these with your GCP details
-PROJECT_ID="your-project-id"
-REGION="us-central1"
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}🚀 Starting deployment setup for Inicio Recruiter Assistant...${NC}"
+
+# 1. Check for gcloud CLI
+if ! command -v gcloud &> /dev/null; then
+    echo "Error: gcloud is not installed or not in your PATH."
+    echo "Please install the Google Cloud SDK: https://cloud.google.com/sdk/docs/install"
+    exit 1
+fi
+
+# 2. Get/Set Project ID
+PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
+if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" == "(unset)" ]; then
+    echo -e "${YELLOW}No active GCP Project selected.${NC}"
+    read -p "Enter your Google Cloud Project ID: " PROJECT_ID
+    if [ -z "$PROJECT_ID" ]; then
+        echo "Error: Project ID required."
+        exit 1
+    fi
+    echo "Setting project to $PROJECT_ID..."
+    gcloud config set project "$PROJECT_ID"
+else
+    echo -e "Using current project: ${GREEN}$PROJECT_ID${NC}"
+    read -p "Press ENTER to confirm or Ctrl+C to cancel..."
+fi
+
+# 3. Deployment Configuration
 SERVICE_NAME="inicio-recruiter-assistant"
+REGION="us-central1"
 IMAGE_NAME="gcr.io/$PROJECT_ID/$SERVICE_NAME"
 
-echo "🚀 Starting deployment to Google Cloud Run..."
+# 4. Enable Services (idempotent)
+echo "Enabling necessary APIs (Cloud Build, Cloud Run)..."
+gcloud services enable cloudbuild.googleapis.com run.googleapis.com
 
-# 1. Build the container image using Cloud Build
-echo "Building image..."
-gcloud builds submit --tag $IMAGE_NAME .
+# 5. Build Container
+echo -e "${YELLOW}Building container image... (This may take a few minutes)${NC}"
+gcloud builds submit --tag "$IMAGE_NAME" .
 
-# 2. Deploy to Cloud Run
-# Note: This command assumes you have set up your DB and Secrets in GCP
-echo "Deploying to Cloud Run..."
-gcloud run deploy $SERVICE_NAME \
-    --image $IMAGE_NAME \
-    --region $REGION \
+# 6. Deploy to Cloud Run
+echo -e "${YELLOW}Deploying to Cloud Run...${NC}"
+gcloud run deploy "$SERVICE_NAME" \
+    --image "$IMAGE_NAME" \
+    --region "$REGION" \
     --platform managed \
     --allow-unauthenticated \
-    --set-env-vars="JWT_SECRET_KEY=change-this-in-prod-or-use-secrets"
+    --set-env-vars="JWT_SECRET_KEY=$(openssl rand -hex 32)" \
+    --set-env-vars="GEMINI_API_KEY=${GEMINI_API_KEY:-insert_your_key_here}"
 
-echo "✅ Done! Your service should be live soon."
-echo "Check the GCP Console for your Service URL."
+echo -e "${GREEN}✅ Deployment Complete!${NC}"
+echo -e "Your service URL is displayed above."
+echo -e "${YELLOW}NOTE: The app is using an ephemeral SQLite database inside the container.${NC}"
+echo -e "      - Data will reset if the container restarts."
+echo -e "      - Default Admin: admin@example.com / admin123"

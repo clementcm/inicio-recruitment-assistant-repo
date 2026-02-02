@@ -63,6 +63,33 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 async def read_root():
     return FileResponse('frontend/index.html')
 
+# Startup Event: Seed Admin User
+@app.on_event("startup")
+def startup_seed_admin():
+    from .database import SessionLocal
+    db = SessionLocal()
+    try:
+        admin_email = "admin@example.com"
+        existing_admin = db.query(models.User).filter(models.User.email == admin_email).first()
+        if not existing_admin:
+            print(f"DEBUG: Seeding default admin user: {admin_email}")
+            hashed_pwd = auth.get_password_hash("admin123")
+            admin_user = models.User(
+                email=admin_email, 
+                hashed_password=hashed_pwd, 
+                is_admin=True, 
+                is_approved=True
+            )
+            db.add(admin_user)
+            db.commit()
+            print("DEBUG: Default admin user created.")
+        else:
+            print("DEBUG: Admin user already exists.")
+    except Exception as e:
+        print(f"WARNING: Failed to seed admin user: {e}")
+    finally:
+        db.close()
+
 # Add Login Page Route (to be created)
 @app.get("/login")
 async def login_page():
