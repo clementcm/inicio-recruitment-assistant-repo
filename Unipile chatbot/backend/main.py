@@ -453,9 +453,9 @@ Using the returned candidate data:
      - **Ranking Rationale**
 
 ### Example Table
-| Name | Current Role | Location | Key Skills | Ranking Rationale |
-|:-----|:-------------|:---------|:-----------|:------------------|
-| [John Doe](https://linkedin.com/in/johndoe) | Senior Java Developer | Toronto, ON | Java, AWS | **High**: 8+ years exp |
+| Name | Current Role | Location | Open to Work | Education | Key Skills | Ranking Rationale |
+|:-----|:-------------|:---------|:-------------|:----------|:-----------|:------------------|
+| [John Doe](https://linkedin.com/in/johndoe) | Senior Java Developer | Toronto, ON | Yes | BS Computer Science | Java, AWS | **High**: 8+ years exp |
 
 ### Search Summary & Insights
 **Mandatory: Provide a concise summary of the ACTUAL candidates returned.**
