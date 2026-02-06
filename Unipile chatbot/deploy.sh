@@ -68,34 +68,34 @@ if [ -f .env ]; then
     echo "Reading API Keys from .env..."
     
     # Gemini Key
-    ENV_KEY=$(grep GEMINI_API_KEY .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    ENV_KEY=$(grep "^GEMINI_API_KEY=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
     if [ -n "$ENV_KEY" ]; then
         export GEMINI_API_KEY=$ENV_KEY
     fi
 
     # Unipile Key
-    UNIPILE_KEY=$(grep UNIPILE_API_KEY .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    UNIPILE_KEY=$(grep "^UNIPILE_API_KEY=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
     if [ -n "$UNIPILE_KEY" ]; then
         export UNIPILE_API_KEY=$UNIPILE_KEY
     fi
 
     # Unipile DSN
-    DSN=$(grep UNIPILE_DSN .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    DSN=$(grep "^UNIPILE_DSN=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
     if [ -n "$DSN" ]; then
         export UNIPILE_DSN=$DSN
     fi
 
     # LinkedIn Account ID
-    LINKEDIN_ID=$(grep LINKEDIN_ACCOUNT_ID .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    LINKEDIN_ID=$(grep "^LINKEDIN_ACCOUNT_ID=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
     if [ -n "$LINKEDIN_ID" ]; then
         export LINKEDIN_ACCOUNT_ID=$LINKEDIN_ID
     fi
 
     # Database URL
-    DB_URL=$(grep DATABASE_URL .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    DB_URL=$(grep "^DATABASE_URL=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
     if [ -n "$DB_URL" ]; then
         export DATABASE_URL=$DB_URL
-        echo "Found DATABASE_URL in .env"
+        echo "Found active DATABASE_URL in .env"
     fi
 fi
 
@@ -122,7 +122,11 @@ gcloud run deploy "$SERVICE_NAME" \
     --allow-unauthenticated \
     --add-cloudsql-instances=gen-lang-client-0688145278:northamerica-northeast2:inicio-ai-assistant \
     --set-env-vars="JWT_SECRET_KEY=$(openssl rand -hex 32)" \
-    --set-env-vars="DATABASE_URL=${DATABASE_URL}"
+    --set-env-vars="DATABASE_URL=${DATABASE_URL}" \
+    --set-env-vars="GEMINI_API_KEY=${GEMINI_API_KEY}" \
+    --set-env-vars="UNIPILE_API_KEY=${UNIPILE_API_KEY}" \
+    --set-env-vars="UNIPILE_DSN=${UNIPILE_DSN}" \
+    --set-env-vars="LINKEDIN_ACCOUNT_ID=${LINKEDIN_ACCOUNT_ID}"
 
 echo -e "${GREEN}✅ Deployment Complete!${NC}"
 echo -e "Your service URL is displayed above."
