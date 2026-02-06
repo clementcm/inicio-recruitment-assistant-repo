@@ -180,7 +180,8 @@ window.loadSystemConfig = async function () {
             configs.forEach(c => {
                 const el = document.getElementById(c.key === 'UNIPILE_DSN' ? 'config-dsn' :
                     c.key === 'UNIPILE_API_KEY' ? 'config-api-key' :
-                        c.key === 'LINKEDIN_ACCOUNT_ID' ? 'config-account-id' : null);
+                        c.key === 'LINKEDIN_ACCOUNT_ID' ? 'config-account-id' :
+                            c.key === 'GEMINI_API_KEY' ? 'config-gemini-key' : null);
                 if (el) {
                     el.value = c.value;
                     console.log(`Set ${c.key} to ${c.value}`);
@@ -198,7 +199,8 @@ window.saveSystemConfig = async function () {
     const updates = [
         { key: 'UNIPILE_DSN', value: document.getElementById('config-dsn').value },
         { key: 'UNIPILE_API_KEY', value: document.getElementById('config-api-key').value },
-        { key: 'LINKEDIN_ACCOUNT_ID', value: document.getElementById('config-account-id').value }
+        { key: 'LINKEDIN_ACCOUNT_ID', value: document.getElementById('config-account-id').value },
+        { key: 'GEMINI_API_KEY', value: document.getElementById('config-gemini-key').value }
     ];
 
     try {

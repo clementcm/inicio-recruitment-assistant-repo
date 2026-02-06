@@ -90,6 +90,13 @@ if [ -f .env ]; then
     if [ -n "$LINKEDIN_ID" ]; then
         export LINKEDIN_ACCOUNT_ID=$LINKEDIN_ID
     fi
+
+    # Database URL
+    DB_URL=$(grep DATABASE_URL .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    if [ -n "$DB_URL" ]; then
+        export DATABASE_URL=$DB_URL
+        echo "Found DATABASE_URL in .env"
+    fi
 fi
 
 if [ -z "$GEMINI_API_KEY" ]; then
@@ -113,14 +120,12 @@ gcloud run deploy "$SERVICE_NAME" \
     --region "$REGION" \
     --platform managed \
     --allow-unauthenticated \
+    --add-cloudsql-instances=gen-lang-client-0688145278:northamerica-northeast2:inicio-ai-assistant \
     --set-env-vars="JWT_SECRET_KEY=$(openssl rand -hex 32)" \
-    --set-env-vars="GEMINI_API_KEY=$GEMINI_API_KEY" \
-    --set-env-vars="UNIPILE_API_KEY=$UNIPILE_API_KEY" \
-    --set-env-vars="UNIPILE_DSN=${UNIPILE_DSN:-https://api1.unipile.com:13200}" \
-    --set-env-vars="LINKEDIN_ACCOUNT_ID=${LINKEDIN_ACCOUNT_ID}"
+    --set-env-vars="DATABASE_URL=${DATABASE_URL}"
 
 echo -e "${GREEN}✅ Deployment Complete!${NC}"
 echo -e "Your service URL is displayed above."
-echo -e "${YELLOW}NOTE: The app is using an ephemeral SQLite database inside the container.${NC}"
-echo -e "      - Data will reset if the container restarts."
+echo -e "${YELLOW}NOTE: Ensure DATABASE_URL is set in Cloud Run for persistence.${NC}"
+echo -e "      - If configured correctly, your data will be saved to Cloud SQL."
 echo -e "      - Default Admin: admin@example.com / admin123"

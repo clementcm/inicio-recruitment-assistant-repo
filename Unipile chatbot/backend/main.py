@@ -16,8 +16,8 @@ from .database import engine, Base, get_db
 from . import models, auth
 from fastapi.security import OAuth2PasswordRequestForm
 
-# Create Tables
-Base.metadata.create_all(bind=engine)
+# Create Tables - Moved to startup event
+# Base.metadata.create_all(bind=engine)
 
 # Import core tools and logic
 # Assuming tools.py is in the same directory
@@ -26,10 +26,11 @@ from .tools import search_linkedin, resolve_linkedin_location, fetch_unipile_spe
 # Load Environment
 import pathlib
 env_path = pathlib.Path(__file__).parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
+load_dotenv(dotenv_path=env_path, override=True)
 
 print(f"DEBUG: Loading .env from {env_path}")
 print(f"DEBUG: .env exists? {env_path.exists()}")
+print(f"DEBUG: LOADED LINKEDIN_ACCOUNT_ID: {os.getenv('LINKEDIN_ACCOUNT_ID')}")
 
 API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY")
 
@@ -38,15 +39,32 @@ if not API_KEY:
 else:
     print(f"DEBUG: GEMINI_API_KEY loaded (len={len(API_KEY)})")
 
-# Use Gemini via OpenAI Compatibility (Async)
-client = AsyncOpenAI(
-    api_key=API_KEY,
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
-)
+# Use Gemini via OpenAI Compatibility (Async) - Moved to chat function for dynamic loading
+# client = AsyncOpenAI(...)
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+
+# Session Retention Config
+MAX_SESSIONS_PER_USER = 20
+
+def purge_old_sessions(db: Session, user_id: int):
+    """Delete oldest sessions if user exceeds MAX_SESSIONS_PER_USER."""
+    session_count = db.query(models.ChatSession).filter(
+        models.ChatSession.user_id == user_id
+    ).count()
+    
+    if session_count >= MAX_SESSIONS_PER_USER:
+        excess = session_count - MAX_SESSIONS_PER_USER + 1
+        oldest_sessions = db.query(models.ChatSession).filter(
+            models.ChatSession.user_id == user_id
+        ).order_by(models.ChatSession.created_at.asc()).limit(excess).all()
+        
+        for old_session in oldest_sessions:
+            db.delete(old_session)
+        db.commit()
+        print(f"DEBUG: Purged {len(oldest_sessions)} old session(s) for user {user_id}")
 
 app = FastAPI()
 
@@ -68,6 +86,15 @@ async def read_root():
 # Startup Event: Seed Admin User
 @app.on_event("startup")
 def startup_seed_admin():
+    try:
+        print("DEBUG: Creating database tables...")
+        Base.metadata.create_all(bind=engine)
+        print("DEBUG: Database tables created.")
+    except Exception as e:
+        print(f"CRITICAL ERROR: Failed to create database tables. Check connection string. Error: {e}")
+        # preventing the app from starting if DB is critical, but logging it first
+        # raising e here will still crash properly but with the log above
+        raise e
     from .database import SessionLocal
     db = SessionLocal()
     try:
@@ -89,19 +116,20 @@ def startup_seed_admin():
         else:
             print("DEBUG: Admin user already exists.")
 
-        # Seed System Config from ENV if empty
-        if db.query(models.SystemConfig).count() == 0:
-            print("DEBUG: Seeding System Config from ENV...")
-            default_config = {
-                "UNIPILE_DSN": os.getenv("UNIPILE_DSN", "https://api1.unipile.com:13200"),
-                "UNIPILE_API_KEY": os.getenv("UNIPILE_API_KEY", ""),
-                "LINKEDIN_ACCOUNT_ID": os.getenv("LINKEDIN_ACCOUNT_ID", "")
-            }
-            for key, value in default_config.items():
-                if value:
-                    db.add(models.SystemConfig(key=key, value=value))
-            db.commit()
-            print("DEBUG: System Config seeded.")
+        # Seed System Config from ENV if empty or if missing GEMINI_API_KEY
+        existing_keys = [c.key for c in db.query(models.SystemConfig).all()]
+        default_config = {
+            "UNIPILE_DSN": os.getenv("UNIPILE_DSN", "https://api1.unipile.com:13200"),
+            "UNIPILE_API_KEY": os.getenv("UNIPILE_API_KEY", ""),
+            "LINKEDIN_ACCOUNT_ID": os.getenv("LINKEDIN_ACCOUNT_ID", ""),
+            "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY", "")
+        }
+        for key, value in default_config.items():
+            if key not in existing_keys and value:
+                print(f"DEBUG: Seeding missing config key: {key}")
+                db.add(models.SystemConfig(key=key, value=value))
+        db.commit()
+        print("DEBUG: System Config check complete.")
 
     except Exception as e:
         print(f"WARNING: Failed to seed data: {e}")
@@ -449,15 +477,16 @@ Using the returned candidate data:
      - **Name** (clickable link to LinkedIn profile using `linkedin_url`)
      - **Current Role**
      - **Location**
-     - **Open to Work**
      - **Education**
+     - **Interests**
+     - **Years Exp**
      - **Key Skills**
      - **Ranking Rationale**
 
 ### Example Table
-| Name | Current Role | Location | Open to Work | Education | Key Skills | Ranking Rationale |
-|:-----|:-------------|:---------|:-------------|:----------|:-----------|:------------------|
-| [John Doe](https://linkedin.com/in/johndoe) | Senior Java Developer | Toronto, ON | Yes | BS Computer Science | Java, AWS | **High**: 8+ years exp |
+| Name | Current Role | Location | Education | Interests | Years Exp | Key Skills | Ranking Rationale |
+|:-----|:-------------|:---------|:----------|:--------------------|:----------|:-----------|:------------------|
+| [John Doe](https://linkedin.com/in/johndoe) | Senior Java Developer | Toronto, ON | BS Computer Science | OPEN_TO_WORK | 8+ | Java, AWS | **High**: Strong match |
 
 ### Search Summary & Insights
 **Mandatory: Provide a concise summary of the ACTUAL candidates returned.**
@@ -685,6 +714,9 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
         ).first()
 
         if not db_session:
+            # Purge old sessions before creating new one
+            purge_old_sessions(db, current_user.id)
+            
             current_history = [{"role": "system", "content": current_system_prompt}]
             db_session = models.ChatSession(
                 id=session_id, 
@@ -708,13 +740,29 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
             if not any(msg.get("role") == last_incoming["role"] and msg.get("content") == last_incoming["content"] for msg in current_history[-2:]):
                 current_history.append(last_incoming)
 
+        # Fetch Config for Tools & OpenAI
+        db_config = {c.key: c.value for c in db.query(models.SystemConfig).all()}
+        unipile_dsn = db_config.get("UNIPILE_DSN")
+        unipile_api_key = db_config.get("UNIPILE_API_KEY")
+        linkedin_account_id = db_config.get("LINKEDIN_ACCOUNT_ID")
+        gemini_api_key = db_config.get("GEMINI_API_KEY")
+
+        if not gemini_api_key:
+            raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured in System Config")
+
+        # Initialize client with key from DB
+        dynamic_client = AsyncOpenAI(
+            api_key=gemini_api_key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+        )
+
         full_history = current_history
         print(f"DEBUG: User {current_user.email} - Session {session_id} - Sending {len(full_history)} messages to Gemini...")
 
         # 1. Call Async OpenAI (Initial)
         # Loop to handle chained tool calls (e.g., fetch_spec -> search_linkedin)
         while True:
-            response = await client.chat.completions.create(
+            response = await dynamic_client.chat.completions.create(
                 model="gemini-3-flash-preview", 
                 messages=full_history,
                 tools=TOOLS,
@@ -727,11 +775,11 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
             if not message.tool_calls:
                 break
             
-            # Fetch Config for Tools
-            db_config = {c.key: c.value for c in db.query(models.SystemConfig).all()}
-            unipile_dsn = db_config.get("UNIPILE_DSN")
-            unipile_api_key = db_config.get("UNIPILE_API_KEY")
-            linkedin_account_id = db_config.get("LINKEDIN_ACCOUNT_ID")
+            # Fetch Config for Tools - Now handled above at start of chat
+            # db_config = {c.key: c.value for c in db.query(models.SystemConfig).all()}
+            # unipile_dsn = db_config.get("UNIPILE_DSN")
+            # unipile_api_key = db_config.get("UNIPILE_API_KEY")
+            # linkedin_account_id = db_config.get("LINKEDIN_ACCOUNT_ID")
 
             # Execute tools directly
             tool_outputs = []

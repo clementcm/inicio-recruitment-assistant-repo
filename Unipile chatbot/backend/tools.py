@@ -179,9 +179,15 @@ def search_linkedin(
                 "education": clean_list(item.get("education", []), ["school", "degree", "field_of_study", "description"]),
                 
                 # Certifications
-                "certifications": clean_list(item.get("certifications", []), ["name", "authority"])
+                "certifications": clean_list(item.get("certifications", []), ["name", "authority"]),
+                
+                # Interest-related fields (check various possible field names from Unipile)
+                "interest_likelihood": item.get("interest_likelihood") or item.get("interestLikelihood") or item.get("interest") or profile.get("interest_likelihood"),
+                "interests": item.get("interests") or profile.get("interests") or item.get("member_interests") or [],
             }
             
+            # Debug: Log the raw item keys to see what's available
+            print(f"DEBUG: Candidate {candidate['name']} - Raw item keys: {list(item.keys())}")
             # Infer current role for quick display (using 'role' key from Unipile)
             if candidate["experience"]:
                  curr = candidate["experience"][0]

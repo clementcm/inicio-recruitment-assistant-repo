@@ -20,4 +20,5 @@ EXPOSE 8080
 
 # Command to run the application
 # We use host 0.0.0.0 and port 8080 for cloud compatibility
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Use shell form or explicit command to support $PORT
+CMD uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8080}

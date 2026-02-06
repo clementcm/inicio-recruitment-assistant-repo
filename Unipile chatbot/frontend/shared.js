@@ -111,4 +111,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target === settingsModal) settingsModal.classList.remove('active');
         };
     }
+
+    // Version Display
+    if (typeof APP_VERSION !== 'undefined') {
+        const versionElements = [
+            document.getElementById('app-version-display'),
+            document.getElementById('sidebar-version-display')
+        ];
+
+        versionElements.forEach(el => {
+            if (el) el.textContent = `v${APP_VERSION}`;
+        });
+    }
 });

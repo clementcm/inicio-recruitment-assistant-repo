@@ -225,8 +225,29 @@ if (sendBtn) {
     sendBtn.addEventListener('click', sendMessage);
 }
 if (userInput) {
-    userInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
+    // Auto-grow textarea
+    function autoGrow() {
+        userInput.style.height = 'auto';
+        const newHeight = Math.min(userInput.scrollHeight, 200);
+        userInput.style.height = newHeight + 'px';
+
+        // Show scrollbar only if exceeding max-height
+        if (userInput.scrollHeight > 200) {
+            userInput.style.overflowY = 'auto';
+        } else {
+            userInput.style.overflowY = 'hidden';
+        }
+    }
+
+    userInput.addEventListener('input', autoGrow);
+
+    // Shift+Enter for new line, Enter to send
+    userInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+            userInput.style.height = 'auto'; // Reset height after sending
+        }
     });
 }
 

@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Boolean, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from .database import Base
 
 class User(Base):
@@ -21,6 +22,7 @@ class ChatSession(Base):
     id = Column(String, primary_key=True, index=True) # session_id (UUID)
     user_id = Column(Integer, ForeignKey("users.id"))
     history = Column(Text) # Store JSON string of message history
+    created_at = Column(DateTime, server_default=func.now())
 
     owner = relationship("User", back_populates="sessions")
 

@@ -8,6 +8,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sql_app.db")
 
 # SQLite needs 'check_same_thread' False
 if DATABASE_URL.startswith("sqlite"):
+    print("WARNING: Using SQLite database. Data will be lost if container restarts (e.g. on Cloud Run). Set DATABASE_URL for persistence.")
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
     engine = create_engine(DATABASE_URL)

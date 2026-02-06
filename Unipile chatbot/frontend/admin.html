@@ -294,6 +294,8 @@
                 <div id="user-email-display"
                     style="margin-top: 12px; padding: 8px 12px; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); border-top: 1px solid var(--border-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 </div>
+                <div id="sidebar-version-display"
+                    style="padding: 4px 12px; font-size: 0.7rem; color: var(--text-secondary); opacity: 0.7;"></div>
             </div>
         </nav>
 
@@ -317,6 +319,10 @@
                 <div class="form-group">
                     <label>LinkedIn Account ID</label>
                     <input type="text" id="config-account-id" placeholder="Enter Account ID">
+                </div>
+                <div class="form-group">
+                    <label>Gemini API Key</label>
+                    <input type="password" id="config-gemini-key" placeholder="Enter Gemini API Key">
                 </div>
             </div>
 
@@ -404,12 +410,16 @@
                     <small style="display:block; margin-top:5px; color:gray;">(Settings are global in Chat)</small>
                 </div>
             </div>
+            <div id="app-version-display"
+                style="text-align: center; color: var(--text-secondary); font-size: 0.75rem; margin-bottom: 1rem;">
+            </div>
         </div>
     </div>
 
     <!-- Scripts -->
-    <script src="/static/shared.js"></script>
-    <script src="/static/admin.js"></script>
+    <script src="/static/version.js?v=2"></script>
+    <script src="/static/shared.js?v=2"></script>
+    <script src="/static/admin.js?v=2"></script>
 </body>
 
 </html>
