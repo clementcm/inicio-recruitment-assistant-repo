@@ -53,13 +53,56 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleBtnFloat = document.getElementById('sidebar-toggle-float');
 
     if (sidebar && toggleBtnSidebar) {
+        const isMobile = () => window.innerWidth <= 768;
+
+        function updateToggleIcons() {
+            const twoLineIcon = `
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="4" y1="8" x2="20" y2="8"></line>
+                    <line x1="4" y1="16" x2="20" y2="16"></line>
+                </svg>
+            `;
+            if (toggleBtnSidebar) toggleBtnSidebar.innerHTML = twoLineIcon;
+            if (toggleBtnFloat) toggleBtnFloat.innerHTML = twoLineIcon;
+        }
+
         function toggleSidebar() {
             sidebar.classList.toggle('collapsed');
             document.body.classList.toggle('sidebar-collapsed');
         }
 
+        updateToggleIcons();
+
+        // Auto-collapse on mobile load
+        if (isMobile()) {
+            sidebar.classList.add('collapsed');
+            document.body.classList.add('sidebar-collapsed');
+        }
+
         toggleBtnSidebar.onclick = toggleSidebar;
         if (toggleBtnFloat) toggleBtnFloat.onclick = toggleSidebar;
+
+        // On mobile, close sidebar after clicking a session
+        const sessionList = document.getElementById('session-list');
+        if (sessionList) {
+            sessionList.addEventListener('click', (e) => {
+                if (isMobile() && e.target.classList.contains('session-item')) {
+                    sidebar.classList.add('collapsed');
+                    document.body.classList.add('sidebar-collapsed');
+                }
+            });
+        }
+
+        // Close on new chat click too
+        const newChatBtn = document.getElementById('new-chat-btn');
+        if (newChatBtn) {
+            newChatBtn.addEventListener('click', () => {
+                if (isMobile()) {
+                    sidebar.classList.add('collapsed');
+                    document.body.classList.add('sidebar-collapsed');
+                }
+            });
+        }
     }
 
     // Logout Logic

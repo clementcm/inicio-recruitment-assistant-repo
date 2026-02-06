@@ -1,7 +1,14 @@
 # Release Notes
 
-## v1.0.1
-- **Deployment Fix**: Updated `deploy.sh` to correctly pass environment variables for database seeding.
+## [1.0.2] - 2026-02-06
+### Fixed
+- Sidebar toggle icon updated to minimalist "two-line" style.
+- Fixed sidebar toggle disappearing when collapsed on some screen sizes.
+- Improved chat interface responsiveness for mobile (400px width).
+- Corrected CSS syntax error in media queries.
+
+## [1.0.1] - 2026-02-06
+**Deployment Fix**: Updated `deploy.sh` to correctly pass environment variables for database seeding.
 - **Environment**: Upgraded base image to **Python 3.11** for better library compatibility and performance.
 - **Bug Fix**: Fixed environment variable parsing logic to ignore commented-out lines in `.env`.
 
