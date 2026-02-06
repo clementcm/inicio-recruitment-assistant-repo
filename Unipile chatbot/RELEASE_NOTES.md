@@ -1,5 +1,10 @@
 # Release Notes
 
+## [1.0.3] - 2026-02-06
+### Changed
+- Reverted sidebar toggle icon to the original rectangle style per user preference.
+- Maintained v1.0.2 improvements (visibility fixes and mobile responsiveness).
+
 ## [1.0.2] - 2026-02-06
 ### Fixed
 - Sidebar toggle icon updated to minimalist "two-line" style.
